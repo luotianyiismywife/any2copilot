@@ -417,8 +417,7 @@ scripts/
 docs/
 ├── multi-api-key-design.md               # 多 Key 轮换与失效切换设计
 ├── plan-usage-design.md                  # 套餐用量与余额显示设计
-├── vscode-dev-notes.md                   # VS Code 开发经验（浏览器自动化 / MCP / 市场上传）
-└── archive/                              # 历史设计归档
+└── vscode-dev-notes.md                   # VS Code 开发经验（浏览器自动化 / MCP / 市场上传）
 test/                                     # 测试脚本（运行前需 npm run compile）
 .copilot/
 ├── api-reference.md                      # 平台 API 实测参考（移植时按此方法探测新平台）

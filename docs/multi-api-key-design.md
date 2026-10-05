@@ -2,8 +2,7 @@
 
 > 状态：**已实施** | 适用范围：聊天请求、Git 提交消息生成、模型列表、启动同步、手动检测
 >
-> 本文档描述**当前代码**的行为。历史设计（含已废弃的 cookie 主动余额预检架构）见
-> [`archive/multi-api-key-design-v1.9-cookie-precheck.md`](archive/multi-api-key-design-v1.9-cookie-precheck.md)。
+> 本文档描述**当前代码**的行为。
 >
 > **本模块与平台无关**，直接复用。仅"失效判定"依赖平台返回的状态码/错误文本（可配置）。
 
