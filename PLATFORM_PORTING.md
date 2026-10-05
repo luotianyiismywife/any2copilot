@@ -1,0 +1,81 @@
+# 平台移植指南（脚手架用法）
+
+本仓库是从 [sense-audio-copilot](https://github.com/luotianyiismywife/sense-audio-copilot) 抽出的
+**通用脚手架**：把任意 OpenAI 兼容平台接入 GitHub Copilot Chat 的 VS Code 扩展模板。
+做新平台时按本清单逐项替换即可。
+
+## 1. 必改项（平台身份）
+
+### 1.1 `src/platform/platformConfig.ts` — 平台配置单一事实来源
+
+所有平台地址 / 固定头 / 兜底值集中在此，**移植第一站**：
+
+| 常量 | 用途 | 改什么 |
+|------|------|--------|
+| `API_BASE_URL` | OpenAI 兼容 API 根地址（聊天/模型列表/余额检测共用） | 换成新平台 `/v1` 地址 |
+| `PLATFORM_HOME_URL` / `PLATFORM_API_KEY_URL` | 官网 / 获取密钥跳转 | 换新平台地址 |
+| `PLATFORM_USER_SELF_URL` | 用户中心账号信息端点（套餐用量/余额） | 换新平台端点；无此能力可删（见 §3） |
+| `PLATFORM_HEADERS` | 用户中心接口必需固定头 | 按新平台域校验调整；无校验则置 `{}` |
+| `FALLBACK_TEST_MODEL_ID` | 模型列表不可用时的兜底测试模型 | 换新平台的模型 ID |
+| `LOGIN_TOKEN_SOURCE_HINT` | 登录 token 来源提示文案 | 按新平台 localStorage 结构改写 |
+
+### 1.2 `package.json` — VS Code 静态声明（无法运行时改，全局替换）
+
+- `name` / `publisher` / `displayName` / `description` / `repository`
+- `contributes.languageModelChatProviders[0].vendor`（`senseaudio` → 新平台名）
+- **命令前缀**：全部 `senseaudio.` → 新前缀（`src/` 全局替换 + package.json）
+- `contributes.configuration.properties` 的设置键前缀（同上）
+- `keywords`
+
+### 1.3 `src/core/localize.ts` + `package.nls*.json` — 文案
+
+把 "SenseAudio" 字样换成新平台名（zhCN 表 + 两个 nls 文件）。
+
+## 2. 平台行为差异排查清单
+
+移植后按此清单逐项实测（参考 `.copilot/api-reference.md` 的实测方法）：
+
+- [ ] `GET /v1/models` 返回结构：是否有 `mode`/`protocols`/`supports_*` 字段？
+      非 llm 模型（tts/stt/image）是否需要过滤（见 `src/models/apiModelList.ts`）？
+- [ ] 三协议支持情况：`/v1/chat/completions`、`/v1/messages`、`/v1/responses`
+      ——不支持的协议在 `resolveApiMode`（`src/provider/requestOptions.ts`）里锁死为 `openai`
+- [ ] `thinking` / `reasoning_effort` 参数的合法取值（各平台差异极大，400 就是对拍点）
+- [ ] 流式 SSE 事件格式是否标准（`data: {...}` / `[DONE]`）
+- [ ] 余额/套餐端点：响应结构、积分单位（**1 元 = 多少积分**，各平台不同，别混用）
+- [ ] 限流特征：429/402/401 的语义与返回体（`src/keys/config.ts` 的错误 patterns）
+- [ ] 是否支持 prompt cache（影响 README 的额度说明）
+
+## 3. 可裁剪模块
+
+| 模块 | 何时删 |
+|------|--------|
+| `src/balance/` + `src/commands/checkUsageCommand.ts` + 状态栏用量 | 新平台无用户中心/套餐概念 |
+| `src/cloud/cloudSync.ts` | 不需要 GitHub Gist 云同步 |
+| `src/vision/` | 不需要图片代理（ask_image） |
+| `src/gitCommit/` | 不需要提交消息生成 |
+
+删除后同步清理：`extension.ts` 的初始化调用、`registerCommands.ts` 的命令注册、
+package.json 的 contributes、`scripts/dev/audit-all.mjs` 会帮你查漂移（`npm run audit`）。
+
+## 4. 保持不变的通用层（移植核心价值）
+
+以下模块与平台无关，**直接复用**：
+
+- `src/api/` — 三协议适配器 + 共享 SSE 解析 + HTTP 样板
+- `src/provider/` — Chat Provider 编排、key 轮换循环、瞬态重试
+- `src/keys/` — 多 key 管理（增删改/批量导入/冷却/轮换）
+- `src/tokenizer/` — o200k_base token 计数
+- `src/core/` — 日志 / l10n / 工具函数
+- `scripts/` — 构建 / 审计 / 打包 VSIX
+
+## 5. 验证流程
+
+```bash
+npm install
+npm run compile   # 编译 + 设置项一致性检查
+npm run audit     # 7 项审计（设置漂移/未使用导出/命令声明等）
+npm run build     # 打包 VSIX
+```
+
+F5 启动扩展宿主 → 设置 API Key → 模型选择器选模型 → 发一条消息 →
+再跑一遍 §2 清单。

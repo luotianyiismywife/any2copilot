@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+out/
+scripts/out/
+
+# VSIX package
+*.vsix
+
+# VS Code
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Auto-generated build log (appended by scripts/build-info.mjs on each npm run compile)
+.copilot/build-log.md
+
+# User data exports (personal account call logs)
+call-logs-export.csv
