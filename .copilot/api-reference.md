@@ -1,6 +1,7 @@
-# SenseAudio 平台 API 实测参考
+# SenseAudio 平台 API 实测参考（示例）
 
-> ⚠️ **本文档全部基于实测**（2026-09-29，用真实 key 逐项验证），不是对官方文档的转抄。
+> ⚠️ **本文档是 SenseAudio 平台的实测示例，供移植时参考探测方法**——不是脚手架的一部分。
+> 移植到新平台时，按本文的方法（端点探测、字段核对、错误语义实测）重新生成一份你平台的参考。
 > 官方文档：<https://docs.senseaudio.cn/api-reference/introduction>（部分内容滞后或与实际不符，以本文实测为准）。
 > 复测脚本：`test/api-tests.mjs`（三协议全量）、`test/test-responses-recheck.mjs`（Responses 行为）。
 >

@@ -63,7 +63,7 @@ description: "Use when: 需要操作浏览器（市场上传/审核、GitHub Rel
    - 上传对话框出现（`[role=dialog]` + `#file-upload`）
    - **文件注入是死路**：`#file-upload` 隐藏（`offsetParent=null`），MCP 无 setInputFiles 等价物；显示它（改 style）后用户手动选择也不可靠
    - **最终由用户手动完成文件选择 + reCAPTCHA + Upload**（Firefox 无 CSP 限制，reCAPTCHA 正常显示）
-4. **验证成功**：列表行出现 `SenseAudio Provider for Copilot Verifying 1.0.0 just now Public`。
+4. **验证成功**：列表行出现 `<扩展名> Verifying 1.0.0 just now Public`。
 
 > ⚠️ **关键教训**：vsix 打包必须**包含 dependencies**！用 `npx vsce package`（**不要加 `--no-dependencies`**），否则插件装不上 node_modules，用户激活直接崩溃（报"命令未找到"）。打包后务必 `npx vsce ls` 确认 `node_modules/` 在包内。
 
@@ -83,12 +83,12 @@ description: "Use when: 需要操作浏览器（市场上传/审核、GitHub Rel
 
 ### 1.4 版本号与发布命名规则（重要）
 
-> **历史教训（2026-08-09）**：曾打包为 `extension.vsix`（vsce 默认输出名），但正确的发布产物命名必须是 **`<扩展名>-<版本号>.vsix`**（如 `senseaudio-copilot-1.6.0.vsix`），否则与历史 release 下载链接的附件名不一致。
+> **历史教训（2026-08-09）**：曾打包为 `extension.vsix`（vsce 默认输出名），但正确的发布产物命名必须是 **`<扩展名>-<版本号>.vsix`**（如 `my-ext-1.6.0.vsix`），否则与历史 release 下载链接的附件名不一致。
 
 | 项目 | 规则 |
 |------|------|
-| **打包输出名** | 固定为 **`<name>-<version>.vsix`**（如 `senseaudio-copilot-1.6.0.vsix`）：`npx vsce package -o senseaudio-copilot-<version>.vsix`。**不要用 vsce 默认的 `extension.vsix`** |
-| **name/version 来源** | `package.json` 的 `name` 字段（`senseaudio-copilot`）+ `version` 字段（如 `1.6.0`） |
+| **打包输出名** | 固定为 **`<name>-<version>.vsix`**（如 `my-ext-1.6.0.vsix`）：`npx vsce package -o <name>-<version>.vsix`。**不要用 vsce 默认的 `extension.vsix`** |
+| **name/version 来源** | `package.json` 的 `name` 字段（如 `my-ext`）+ `version` 字段（如 `1.6.0`） |
 | **GitHub Release 附件** | 上传 `<name>-<version>.vsix`，下载链接即 `.../releases/download/<tag>/<name>-<version>.vsix` |
 | **tag 格式** | `vX.Y.Z`（如 `v1.6.0`），指向对应版本提交 |
 | **版本号语义** | 现有功能调整 / 修 bug → 只升 z（patch，如 1.5.0 → 1.5.1）；新增功能 → 升 y（minor，如 1.5.0 → 1.6.0）；完全重构（不向后兼容）→ 升 x（major，如 1.5.0 → 2.0.0） |
@@ -107,13 +107,13 @@ git tag -l "v*" | Sort-Object -Descending | Select-Object -First 3
 git ls-remote --tags origin | Select-String "<version>"
 # 3. 打包并验证内容（输出名必须为 <name>-<version>.vsix）
 npm run compile
-npx vsce package -o senseaudio-copilot-<version>.vsix
+npx vsce package -o <name>-<version>.vsix
 npx vsce ls   # 确认 node_modules/ 与 out/ 齐全
 # 4. 打 tag 并推送（确保 tag 指向含完整实现的提交）
 git tag v<version> && git push origin v<version>
 # 5. 发布（浏览器流程）
-#    - GitHub: releases/new?tag=vX.Y.Z，附件用 senseaudio-copilot-<version>.vsix
-#    - 市场: 上传 senseaudio-copilot-<version>.vsix
+#    - GitHub: releases/new?tag=vX.Y.Z，附件用 <name>-<version>.vsix
+#    - 市场: 上传 <name>-<version>.vsix
 ```
 
 > ⚠️ **教训（2026-08-09 v1.6.1）**：曾只提交 `package.json`+`CHANGELOG.md` 就 push tag，导致 tag 指向不含实现源码的提交（`src/extension.ts` 等 6 个文件漏提交）。**必须先 `git status` 确认所有源码已提交**，再打 tag 发布。
