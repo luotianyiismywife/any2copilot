@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { SenseAudioChatModelProvider } from "./provider/provider";
 import { initStatusBar } from "./ui/statusBar";
 import { logger } from "./core/logger";
+import { VersionManager } from "./core/versionManager";
 import { TokenizerManager } from "./tokenizer/tokenizerManager";
 import { syncModelsOnStartup } from "./models/modelSync";
 import { autoPullOnStartup } from "./cloud/cloudSync";
@@ -20,6 +21,10 @@ export function activate(context: vscode.ExtensionContext) {
     // Initialize logger
     logger.init();
 
+    // Capture the real extension id / name / publisher (avoids hardcoding the
+    // id, which changes when the scaffold is ported to a new platform).
+    VersionManager.initialize(context);
+
     // Initialize TokenizerManager with extension path
     TokenizerManager.initialize(context.extensionPath);
 
@@ -37,7 +42,7 @@ export function activate(context: vscode.ExtensionContext) {
     registerCommands(context, provider);
 
     // Startup model sync — checks for new SenseAudio models at most once per
-    // day and logs a single line to the "SenseAudio" Output channel.
+    // day and logs a single line to the extension's Output channel.
     // Fire-and-forget: never blocks activation, all errors are handled internally.
     syncModelsOnStartup(context);
 

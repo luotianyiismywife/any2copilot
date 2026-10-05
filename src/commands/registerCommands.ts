@@ -37,8 +37,8 @@ export function registerCommands(
             const store = await getApiKeyStore(context.secrets);
             const existing = store.keys.length > 0 ? store.keys[store.activeIndex]?.value : undefined;
             const apiKey = await vscode.window.showInputBox({
-                title: l10n("SenseAudio Provider API Key"),
-                prompt: existing ? l10n("Update your SenseAudio API key") : l10n("Enter your SenseAudio API key"),
+                title: l10n("Provider API Key"),
+                prompt: existing ? l10n("Update your API key") : l10n("Enter your API key"),
                 ignoreFocusOut: true,
                 password: true,
                 value: existing ?? "",
@@ -50,12 +50,12 @@ export function registerCommands(
                 // Clear all keys
                 await context.secrets.store("senseaudio.apiKeys", JSON.stringify({ keys: [], activeIndex: 0 }));
                 await context.secrets.delete("senseaudio.apiKey");
-                vscode.window.showInformationMessage(l10n("SenseAudio API key cleared."));
+                vscode.window.showInformationMessage(l10n("API key cleared."));
                 return;
             }
             const trimmed = apiKey.trim();
             if (existing && existing === trimmed) {
-                vscode.window.showInformationMessage(l10n("SenseAudio API key saved."));
+                vscode.window.showInformationMessage(l10n("API key saved."));
                 return;
             }
             const added = await addApiKey(context.secrets, { value: trimmed, available: null });
@@ -66,7 +66,7 @@ export function registerCommands(
                     await setActiveKey(context.secrets, idx);
                 }
             }
-            vscode.window.showInformationMessage(l10n("SenseAudio API key saved."));
+            vscode.window.showInformationMessage(l10n("API key saved."));
         })
     );
 
@@ -97,7 +97,7 @@ export function registerCommands(
     // Command to open extension settings
     context.subscriptions.push(
         vscode.commands.registerCommand("senseaudio.openSettings", () => {
-            vscode.commands.executeCommand("workbench.action.openSettings", "@ext:luotianyiismywife.senseaudio-copilot-provider");
+            vscode.commands.executeCommand("workbench.action.openSettings", `@ext:${context.extension.id}`);
         })
     );
 

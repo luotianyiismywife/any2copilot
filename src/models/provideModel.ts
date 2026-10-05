@@ -10,7 +10,7 @@ import { getPrimaryApiKey } from "../keys/keyManager";
 import type { SenseAudioModelItem } from "../core/types";
 import { l10n } from "../core/localize";
 
-const EXTENSION_LABEL = "SenseAudio";
+const EXTENSION_LABEL = "Copilot Provider Scaffold";
 const DEFAULT_CONTEXT_LENGTH = 128000;
 const DEFAULT_MAX_TOKENS = 4096;
 
@@ -65,7 +65,7 @@ function buildAutoDiscoveredInfo(
     const displayName = apiMeta?.display_name ?? entry?.name ?? modelId;
 
     // Tooltip: /v1/models desc (model description) when available.
-    const tooltip = apiMeta?.desc ?? "SenseAudio";
+    const tooltip = apiMeta?.desc ?? EXTENSION_LABEL;
 
     // Determine context length and max output tokens.
     // /v1/models metadata is the PRIMARY source (platform truth); models.dev is
@@ -104,7 +104,7 @@ function buildAutoDiscoveredInfo(
     const info: LanguageModelChatInformation = {
         id: modelId,
         name: displayName,
-        detail: "SenseAudio",
+        detail: EXTENSION_LABEL,
         tooltip: tooltip,
         family: EXTENSION_LABEL,
         version: "1.0.0",

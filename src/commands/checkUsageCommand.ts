@@ -47,7 +47,7 @@ export async function checkUsageCommand(context: vscode.ExtensionContext): Promi
                 l10n("Login token expired. Copy a fresh token from the browser (see LOGIN_TOKEN_SOURCE_HINT)."),
             );
         } else {
-            vscode.window.showErrorMessage(l10n("Failed to fetch plan usage. See the SenseAudio output channel for details."));
+            vscode.window.showErrorMessage(l10n("Failed to fetch plan usage. See the extension output channel for details."));
         }
         return;
     }

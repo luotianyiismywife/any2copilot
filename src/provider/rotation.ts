@@ -85,7 +85,7 @@ export async function runKeyRotationLoop(params: RotationLoopParams): Promise<vo
     const store = await getApiKeyStore(secrets);
     if (store.keys.length === 0) {
         logger.warn("apiKey.missing", {});
-        throw new Error(l10n("SenseAudio API key not found"));
+        throw new Error(l10n("API key not found"));
     }
     const totalKeys = store.keys.length;
 

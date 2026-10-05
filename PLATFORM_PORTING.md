@@ -1,8 +1,11 @@
 # 平台移植指南（脚手架用法）
 
 本仓库是从 [sense-audio-copilot](https://github.com/luotianyiismywife/sense-audio-copilot) 抽出的
-**通用脚手架**：把任意 OpenAI 兼容平台接入 GitHub Copilot Chat 的 VS Code 扩展模板。
+**通用脚手架**：把任意三协议兼容（OpenAI / Anthropic / Responses）平台接入 GitHub Copilot Chat 的 VS Code 扩展模板。
 做新平台时按本清单逐项替换即可。
+
+> 脚手架自带**中性身份**（`name: any2copilot` / `displayName: Copilot Provider Scaffold`），
+> 但保留 `senseaudio` 作为**可运行的示例前缀**（vendor / 命令 / 设置键）。移植时按 §1 替换。
 
 ## 1. 必改项（平台身份）
 
@@ -21,15 +24,21 @@
 
 ### 1.2 `package.json` — VS Code 静态声明（无法运行时改，全局替换）
 
-- `name` / `publisher` / `displayName` / `description` / `repository`
-- `contributes.languageModelChatProviders[0].vendor`（`senseaudio` → 新平台名）
+脚手架自带**中性身份**（`name: any2copilot` / `displayName: Copilot Provider Scaffold`），
+移植时改成你平台的：
+
+- `name` / `publisher` / `displayName` / `description` / `repository` / `keywords`
+- `contributes.languageModelChatProviders[0].vendor`（示例值 `senseaudio` → 新平台名）
 - **命令前缀**：全部 `senseaudio.` → 新前缀（`src/` 全局替换 + package.json）
 - `contributes.configuration.properties` 的设置键前缀（同上）
-- `keywords`
+
+> 扩展 ID（`<publisher>.<name>`）在运行时由 `context.extension.id` 动态获取
+> （`VersionManager.initialize` / `registerCommands`），**无需硬编码**。
 
 ### 1.3 `src/core/localize.ts` + `package.nls*.json` — 文案
 
-把 "SenseAudio" 字样换成新平台名（zhCN 表 + 两个 nls 文件）。
+脚手架文案已中性化（"Copilot Provider Scaffold"）。移植时把平台名/文案换成你平台的
+（zhCN 表 + 两个 nls 文件 + `resources/walkthrough/*.md`）。
 
 ## 2. 平台行为差异排查清单
 

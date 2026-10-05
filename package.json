@@ -1,8 +1,8 @@
 {
-	"name": "senseaudio-copilot-provider",
+	"name": "any2copilot",
 	"publisher": "luotianyiismywife",
-	"displayName": "SenseAudio Provider for Copilot",
-	"description": "Integrate SenseAudio models into GitHub Copilot Chat. API keys available from the author (see README). Note: the platform has no prompt cache hits, so quota is consumed faster than cache-enabled platforms.",
+	"displayName": "Copilot Provider Scaffold",
+	"description": "A VS Code extension scaffold for integrating any OpenAI-compatible platform into GitHub Copilot Chat. Fill in your platform details per PLATFORM_PORTING.md.",
 	"keywords": [
 		"ai",
 		"chat",
@@ -10,18 +10,19 @@
 		"github-copilot",
 		"language-models",
 		"llm",
-		"senseaudio",
 		"openai-compatible",
+		"scaffold",
+		"template",
 		"thinking",
 		"git-commit"
 	],
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/luotianyiismywife/senseaudio-copilot"
+		"url": "https://github.com/luotianyiismywife/any2copilot"
 	},
-	"homepage": "https://github.com/luotianyiismywife/senseaudio-copilot",
+	"homepage": "https://github.com/luotianyiismywife/any2copilot",
 	"bugs": {
-		"url": "https://github.com/luotianyiismywife/senseaudio-copilot/issues"
+		"url": "https://github.com/luotianyiismywife/any2copilot/issues"
 	},
 	"version": "1.3.1",
 	"engines": {

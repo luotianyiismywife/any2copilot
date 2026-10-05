@@ -35,7 +35,7 @@ interface BuiltInModelDef {
     apiMode?: "openai" | "anthropic" | "responses";
 }
 
-const EXTENSION_LABEL = "SenseAudio";
+const EXTENSION_LABEL = "Copilot Provider Scaffold";
 const DEFAULT_CONTEXT_LENGTH = 128000;
 const DEFAULT_MAX_TOKENS = 4096;
 
@@ -150,8 +150,8 @@ export function getBuiltInModelInfos(): LanguageModelChatInformation[] {
         const info: LanguageModelChatInformation = {
             id: def.baseId,
             name: def.displayName,
-            detail: `SenseAudio`,
-            tooltip: `SenseAudio`,
+            detail: EXTENSION_LABEL,
+            tooltip: EXTENSION_LABEL,
             family: EXTENSION_LABEL,
             version: "1.0.0",
             maxInputTokens: maxInput,

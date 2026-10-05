@@ -18,8 +18,8 @@ import { getApiKeyStore, saveApiKeyStore, invalidateApiKeyStoreCache, type ApiKe
  * Gist 为 secret（public: false），文件名固定 GIST_FILE_NAME。
  */
 
-const GIST_DESCRIPTION = "senseaudio-copilot key sync (do not edit manually)";
-const GIST_FILE_NAME = "senseaudio-keys.json";
+const GIST_DESCRIPTION = "copilot-provider key sync (do not edit manually)";
+const GIST_FILE_NAME = "copilot-provider-keys.json";
 const GIST_API_BASE = "https://api.github.com/gists";
 
 const GLOBAL_STATE_GIST_ID = "senseaudio.cloudSyncGistId";
@@ -66,7 +66,7 @@ async function gistFetch(session: vscode.AuthenticationSession, url: string, ini
             Authorization: `Bearer ${session.accessToken}`,
             Accept: "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "senseaudio-copilot",
+            "User-Agent": "copilot-provider",
             ...(init?.headers ?? {}),
         },
     });

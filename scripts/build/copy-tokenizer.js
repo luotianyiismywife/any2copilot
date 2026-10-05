@@ -39,21 +39,21 @@ async function ensureTokenizerFile() {
 	}
 
 	if (fs.existsSync(destFile)) {
-		console.log("[senseaudio-copilot] Tokenizer file already exists at:", destFile);
+		console.log("[copy-tokenizer] Tokenizer file already exists at:", destFile);
 		return;
 	}
 
-	console.log("[senseaudio-copilot] Downloading tokenizer file from:", TOKENIZER_URL);
+	console.log("[copy-tokenizer] Downloading tokenizer file from:", TOKENIZER_URL);
 	try {
 		await downloadFile(TOKENIZER_URL, destFile);
-		console.log("[senseaudio-copilot] Tokenizer file downloaded to:", destFile);
+		console.log("[copy-tokenizer] Tokenizer file downloaded to:", destFile);
 	} catch (err) {
-		console.warn("[senseaudio-copilot] Failed to download tokenizer file:", err.message);
-		console.warn("[senseaudio-copilot] Token counting will fall back to estimation.");
+		console.warn("[copy-tokenizer] Failed to download tokenizer file:", err.message);
+		console.warn("[copy-tokenizer] Token counting will fall back to estimation.");
 	}
 }
 
 ensureTokenizerFile().catch((err) => {
-	console.warn("[senseaudio-copilot] Tokenizer setup failed:", err.message);
-	console.warn("[senseaudio-copilot] Token counting will fall back to estimation.");
+	console.warn("[copy-tokenizer] Tokenizer setup failed:", err.message);
+	console.warn("[copy-tokenizer] Token counting will fall back to estimation.");
 });

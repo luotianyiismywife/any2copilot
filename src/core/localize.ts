@@ -4,14 +4,14 @@ const zhCN: Record<string, string> = {
 	// statusBar
 	"Token Count": "Token 计数",
 	// extension.ts - API key prompts
-	"SenseAudio Provider API Key": "SenseAudio 提供商 API 密钥",
-	"Update your SenseAudio API key": "更新您的 SenseAudio API 密钥",
-	"Enter your SenseAudio API key": "输入您的 SenseAudio API 密钥",
-	"SenseAudio API key cleared.": "SenseAudio API 密钥已清除。",
-	"SenseAudio API key saved.": "SenseAudio API 密钥已保存。",
+	"Provider API Key": "提供商 API 密钥",
+	"Update your API key": "更新您的 API 密钥",
+	"Enter your API key": "输入您的 API 密钥",
+	"API key cleared.": "API 密钥已清除。",
+	"API key saved.": "API 密钥已保存。",
 
 	// provider.ts
-	"SenseAudio API key not found": "未找到 SenseAudio API 密钥",
+	"API key not found": "未找到 API 密钥",
 	"Invalid base URL configuration.": "无效的 Base URL 配置。",
 
 	// statusBar cache tooltip
@@ -187,7 +187,7 @@ const zhCN: Record<string, string> = {
 	"Manage API Keys": "管理 API Keys",
 	"Login token expired. Copy a fresh token from the browser (see LOGIN_TOKEN_SOURCE_HINT).":
 		"登录 token 已失效，请从浏览器重新复制（F12 → Application → Local Storage → 平台域名 → user → state.token）。",
-	"Failed to fetch plan usage. See the SenseAudio output channel for details.": "套餐用量查询失败，详见「SenseAudio」输出通道。",
+	"Failed to fetch plan usage. See the extension output channel for details.": "套餐用量查询失败，详见扩展的输出通道。",
 	"No plan usage data available for this account.": "该账号暂无套餐用量数据。",
 };
 

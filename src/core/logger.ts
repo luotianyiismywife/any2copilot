@@ -9,7 +9,7 @@ class Logger {
      * Initialize the logger: create the VS Code Output channel.
      */
     init(): void {
-        this._outputChannel = vscode.window.createOutputChannel("SenseAudio", { log: true });
+        this._outputChannel = vscode.window.createOutputChannel("Copilot Provider Scaffold", { log: true });
     }
 
     debug(tag: string, data: Record<string, unknown>): void {

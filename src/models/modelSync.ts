@@ -11,7 +11,7 @@ import { logger } from "../core/logger";
  * On every VS Code window open the extension checks whether the SenseAudio
  * API has any new models. To avoid hammering the API, the check runs at most
  * once per day (tracked via globalState). Sync results are reported as a
- * single log line in the extension's Output channel ("SenseAudio") — no
+ * single log line in the extension's Output channel — no
  * file is written to the workspace (a `.copilot/model-sync-log.md` file was
  * previously created there, but that polluted user repositories, see issue #1).
  */

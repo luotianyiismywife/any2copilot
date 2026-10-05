@@ -261,7 +261,7 @@ async function performCommitMsgGeneration(secrets: vscode.SecretStorage, gitDiff
 
         const primaryEntry = await ensureApiKeyEntry(secrets);
         if (!primaryEntry) {
-            throw new Error(l10n("SenseAudio API key not found"));
+            throw new Error(l10n("API key not found"));
         }
 
         const baseUrl = selectedModel.baseUrl || API_BASE_URL;
