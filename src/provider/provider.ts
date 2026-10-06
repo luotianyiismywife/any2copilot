@@ -64,7 +64,7 @@ export class ChatModelProvider implements LanguageModelChatProvider {
 
     /**
      * An optional event fired when the available set of language models changes.
-     * Lets VS Code re-query the model list when `senseaudio.apiMode` changes,
+     * Lets VS Code re-query the model list when `any2copilot.apiMode` changes,
      * so the picker only shows models supported by the selected protocol.
      */
     readonly onDidChangeLanguageModelChatInformation = this._onDidChangeLanguageModelChatInformation.event;
@@ -206,7 +206,7 @@ export class ChatModelProvider implements LanguageModelChatProvider {
             // Read Advanced Token indicator setting (default off — the native
             // Copilot indicator is always reported; this only controls the
             // extension's own status-bar counter)
-            const enableThirdPartyIndicator = config.get<boolean>("senseaudio.enableThirdPartyTokenIndicator", false);
+            const enableThirdPartyIndicator = config.get<boolean>("any2copilot.enableThirdPartyTokenIndicator", false);
 
             // Calculate client-side token estimate for fallback (also updates Advanced Token indicator if enabled)
             // Show the status bar — this request is using one of this extension's models.
@@ -217,7 +217,7 @@ export class ChatModelProvider implements LanguageModelChatProvider {
 
             // Apply delay between consecutive requests
             const modelDelay = um?.delay;
-            const globalDelay = config.get<number>("senseaudio.delay", 0);
+            const globalDelay = config.get<number>("any2copilot.delay", 0);
             const delayMs = modelDelay !== undefined ? modelDelay : globalDelay;
 
             if (delayMs > 0 && this._lastRequestTime !== null) {
@@ -244,7 +244,7 @@ export class ChatModelProvider implements LanguageModelChatProvider {
             const retryConfig = createRetryConfig();
 
             // Create request timeout abort controller (default: 10 minutes)
-            requestTimeoutMs = config.get<number>("senseaudio.requestTimeout", 600000);
+            requestTimeoutMs = config.get<number>("any2copilot.requestTimeout", 600000);
             abortController = new AbortController();
             timeoutId = setTimeout(() => abortController.abort(), requestTimeoutMs);
             // Connect VS Code cancellation token to abort the fetch immediately when user stops
@@ -351,7 +351,7 @@ export class ChatModelProvider implements LanguageModelChatProvider {
                 if (isForceTerminated) {
                     throw new Error(l10n("The connection was closed by the server. The generation took too long. Please try again or request shorter content."));
                 }
-                throw new Error(l10n("Request timed out. The generation took too long. You can increase the timeout in settings (senseaudio.requestTimeout)."));
+                throw new Error(l10n("Request timed out. The generation took too long. You can increase the timeout in settings (any2copilot.requestTimeout)."));
             }
 
             // Detect image content moderation rejection from the API

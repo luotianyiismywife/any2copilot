@@ -7,4 +7,4 @@ Copilot Provider Scaffold 使用你自己的 API 密钥，让丰富的 AI 模型
 - `生成提交消息`：生成 Git 提交消息
 
 [获取 API 密钥](https://example.com)
-[设置 API 密钥](command:senseaudio.setApiKey)
+[设置 API 密钥](command:any2copilot.setApiKey)

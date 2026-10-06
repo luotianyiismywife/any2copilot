@@ -7,14 +7,14 @@ import type { StoredImage } from "./types";
  * ⚠️ 必须与 `package.json` 的 `contributes.languageModelChatProviders[0].vendor`
  * 及 `extension.ts` 的 `registerLanguageModelChatProvider(<vendor>, ...)` 一致。
  */
-const PROVIDER_VENDOR = "senseaudio";
+const PROVIDER_VENDOR = "any2copilot";
 
 /**
  * Build a standard set of request options for vision model calls.
  */
 function buildVisionOptions(): vscode.LanguageModelChatRequestOptions {
     const options: vscode.LanguageModelChatRequestOptions = {};
-    const visionThinking = vscode.workspace.getConfiguration().get<boolean>("senseaudio.visionProxyThinking", false);
+    const visionThinking = vscode.workspace.getConfiguration().get<boolean>("any2copilot.visionProxyThinking", false);
     if (visionThinking) {
         options.modelOptions = { reasoning_effort: "high" };
     } else {
@@ -83,7 +83,7 @@ async function sendToVisionModel(
 ): Promise<string> {
     const visionModel = await findVisionModel(visionModelId);
     if (!visionModel) {
-        throw new Error(`Vision model "${visionModelId}" not found. Check the senseaudio.visionProxyModel setting.`);
+        throw new Error(`Vision model "${visionModelId}" not found. Check the any2copilot.visionProxyModel setting.`);
     }
     const response = await visionModel.sendRequest([msg], buildVisionOptions(), token);
     let result = "";

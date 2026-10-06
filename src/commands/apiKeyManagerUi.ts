@@ -29,7 +29,7 @@ import {
 } from "./apiKeyFlows";
 
 /**
- * API Key 管理 QuickPick 主流程（`senseaudio.manageApiKeys` 命令）。
+ * API Key 管理 QuickPick 主流程（`any2copilot.manageApiKeys` 命令）。
  *
  * 循环渲染 key 列表与动作项，直到用户取消。动作分发到 `apiKeyFlows.ts` 中的
  * 各流程函数。
@@ -39,9 +39,9 @@ export async function showApiKeyManager(context: vscode.ExtensionContext): Promi
     // 存在 globalState（非 SecretStorage——token 本身是短期凭证，且需跨窗口共享）。
     const ctx: KeyManagerContext = {
         secrets: context.secrets,
-        getLoginToken: () => context.globalState.get<string>("senseaudio.loginToken"),
+        getLoginToken: () => context.globalState.get<string>("any2copilot.loginToken"),
         setLoginToken: async (token) => {
-            await context.globalState.update("senseaudio.loginToken", token);
+            await context.globalState.update("any2copilot.loginToken", token);
         },
     };
 

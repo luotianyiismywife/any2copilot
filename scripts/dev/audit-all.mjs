@@ -135,7 +135,7 @@ const srcText = new Map(srcFiles.map((f) => [f, fs.readFileSync(f, "utf8")]));
 
 // ── 6. 文档引用的文件路径 ──
 {
-    for (const doc of ["AGENTS.md", "README.md", "docs/plan-usage-design.md", "docs/multi-api-key-design.md", "docs/retry-and-key-rotation.md", "test/README.md"]) {
+    for (const doc of ["AGENTS.md", "README.md", "docs/plan-usage-design.md", "docs/multi-api-key-design.md", "docs/retry-and-key-rotation.md", "docs/neutralization.md", "test/README.md"]) {
         if (!fs.existsSync(doc)) continue;
         const text = fs.readFileSync(doc, "utf8");
         for (const m of text.matchAll(/`(src\/[A-Za-z0-9_./-]+\.ts|scripts\/[A-Za-z0-9_./-]+\.(?:mjs|js)|test\/[A-Za-z0-9_./-]+\.mjs)`/g)) {

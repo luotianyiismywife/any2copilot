@@ -83,7 +83,7 @@ export function isKeyRotationError(err: unknown): boolean {
 
 /**
  * 判断错误是否为"瞬态类"（平台繁忙/限流，可能很快恢复 → 值得整轮自动重试）。
- * 匹配 `senseaudio.transientRetryStatusCodes`（默认 [429, 500, 503]）中的状态码。
+ * 匹配 `any2copilot.transientRetryStatusCodes`（默认 [429, 500, 503]）中的状态码。
  * 与 `isKeyRotationError` 解耦：触发轮换的状态码与触发自动重试的状态码可分别配置。
  */
 export function isTransientRetryError(err: unknown): boolean {

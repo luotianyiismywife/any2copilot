@@ -18,7 +18,7 @@ const warnOnly = process.argv.includes("--warn-only");
 
 const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
 const settingKeys = Object.keys(pkg.contributes.configuration.properties);
-// 从第一个设置键推导前缀（如 "senseaudio.commitLanguage" → "senseaudio"）
+// 从第一个设置键推导前缀（如 "any2copilot.commitLanguage" → "any2copilot"）
 const PREFIX = settingKeys[0]?.split(".")[0] ?? "";
 const prefixRe = PREFIX.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const declared = new Set(

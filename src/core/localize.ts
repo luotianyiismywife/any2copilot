@@ -25,8 +25,8 @@ const zhCN: Record<string, string> = {
 	"empty API response": "API 返回为空",
 
 	// Timeout error
-	"Request timed out. The generation took too long. You can increase the timeout in settings (senseaudio.requestTimeout).":
-		"请求超时，生成内容过长。您可以在设置中增加超时时间（senseaudio.requestTimeout）。",
+	"Request timed out. The generation took too long. You can increase the timeout in settings (any2copilot.requestTimeout).":
+		"请求超时，生成内容过长。您可以在设置中增加超时时间（any2copilot.requestTimeout）。",
 	"The connection was closed by the server. The generation took too long. Please try again or request shorter content.":
 		"服务端连接被关闭，生成内容过长时间过长。请重试或请求较短的内容。",
 

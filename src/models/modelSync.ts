@@ -17,7 +17,7 @@ import { logger } from "../core/logger";
  */
 
 /** globalState key storing the last successful sync date (YYYY-MM-DD, local time). */
-const SYNC_DATE_KEY = "senseaudio.lastModelSyncDate";
+const SYNC_DATE_KEY = "any2copilot.lastModelSyncDate";
 /** Configuration key that enables/disables the startup sync. */
 const SYNC_ENABLED_KEY = "syncModelsOnStartup";
 
@@ -36,7 +36,7 @@ async function logSyncEvent(status: string, detail: string): Promise<void> {
  */
 export async function syncModelsOnStartup(context: vscode.ExtensionContext): Promise<void> {
     try {
-        const config = vscode.workspace.getConfiguration("senseaudio");
+        const config = vscode.workspace.getConfiguration("any2copilot");
         if (!config.get<boolean>(SYNC_ENABLED_KEY, true)) {
             return;
         }

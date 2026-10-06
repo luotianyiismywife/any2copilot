@@ -1,6 +1,6 @@
 // 生成合法 32x32 PNG 并测试视觉模型输入
 // 用法：node test/test-vision-check.mjs <API_KEY> [MODEL_ID]
-//      或设置环境变量 SENSEAUDIO_API_KEY
+//      或设置环境变量 PROVIDER_API_KEY
 import { writeFileSync } from 'node:fs';
 
 // 最小合法 PNG：1x1 红色像素（标准 PNG 头）
@@ -45,15 +45,15 @@ function makePng(width, height) {
 
 const png = makePng(32, 32);
 const b64 = png.toString('base64');
-const KEY = process.argv[2] || process.env.SENSEAUDIO_API_KEY;
+const KEY = process.argv[2] || process.env.PROVIDER_API_KEY;
 if (!KEY) {
     console.error('用法：node test/test-vision-check.mjs <API_KEY> [MODEL_ID]');
     process.exit(1);
 }
 // 默认用当前平台的视觉模型（2026-09-29 实测支持图片输入）
-const MODEL = process.argv[3] || 'qwen3.6-35b-a3b';
+const MODEL = process.argv[3] || 'example-model';
 
-const r = await fetch('https://api.senseaudio.cn/v1/chat/completions', {
+const r = await fetch('https://api.example.com/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({

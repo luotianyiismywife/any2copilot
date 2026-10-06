@@ -55,21 +55,21 @@ export function applyTemperature(
         return;
     }
 
-    const tempPreset = config.get<string>("senseaudio.modelPreset", "custom");
-    const presets = config.get<ModelPreset[]>("senseaudio.modelPresets", []);
+    const tempPreset = config.get<string>("any2copilot.modelPreset", "custom");
+    const presets = config.get<ModelPreset[]>("any2copilot.modelPresets", []);
     const matchedPreset = tempPreset !== "custom" ? presets.find((p) => p.id === tempPreset) : undefined;
 
     if (matchedPreset) {
         um.temperature = matchedPreset.temperature;
         // A preset may pin top_p; otherwise fall back to the configured value
         // (default 0.5) so preset mode and custom mode behave consistently.
-        um.top_p = matchedPreset.top_p ?? config.get<number | null>("senseaudio.top_p", null) ?? undefined;
+        um.top_p = matchedPreset.top_p ?? config.get<number | null>("any2copilot.top_p", null) ?? undefined;
     } else {
-        const userTemperature = config.get<number | null>("senseaudio.temperature", null);
+        const userTemperature = config.get<number | null>("any2copilot.temperature", null);
         if (userTemperature !== null) {
             um.temperature = userTemperature;
         }
-        const userTopP = config.get<number | null>("senseaudio.top_p", null);
+        const userTopP = config.get<number | null>("any2copilot.top_p", null);
         um.top_p = userTopP ?? undefined;
     }
     // Model-specific top_p whitelist (e.g. a model that only accepts 0.95):
@@ -82,7 +82,7 @@ export function applyTemperature(
 /**
  * 确定本次请求使用的 API 协议。
  *
- * `senseaudio.apiMode` 用户设置优先（`openai`/`anthropic`/`responses` 强制）；
+ * `any2copilot.apiMode` 用户设置优先（`openai`/`anthropic`/`responses` 强制）；
  * `auto` 时按能力动态探测（启动时从 `/v1/models` 缓存，不硬编码模型 ID）：
  *   1. `enableResponsesApi`（默认关闭）+ 模型 supports_responses=true → responses
  *   2. `enableAnthropicApi`（默认关闭）+ 模型 supports_anthropic=true → anthropic
@@ -92,12 +92,12 @@ export function resolveApiMode(
     modelId: string,
     config: vscode.WorkspaceConfiguration
 ): "openai" | "anthropic" | "responses" {
-    const apiModeSetting = config.get<string>("senseaudio.apiMode", "auto");
+    const apiModeSetting = config.get<string>("any2copilot.apiMode", "auto");
     if (apiModeSetting === "openai" || apiModeSetting === "anthropic" || apiModeSetting === "responses") {
         return apiModeSetting;
     }
-    const enableResponsesApi = config.get<boolean>("senseaudio.enableResponsesApi", false);
-    const enableAnthropicApi = config.get<boolean>("senseaudio.enableAnthropicApi", false);
+    const enableResponsesApi = config.get<boolean>("any2copilot.enableResponsesApi", false);
+    const enableAnthropicApi = config.get<boolean>("any2copilot.enableAnthropicApi", false);
     if (enableResponsesApi && getResponsesModelIds().has(modelId)) {
         return "responses";
     }

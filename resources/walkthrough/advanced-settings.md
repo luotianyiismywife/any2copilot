@@ -9,4 +9,4 @@
 - **Git 提交**：自定义提交消息语言、提示词和风格参考设置。
 - **Token 指示器**：控制状态栏中的高级 Token 计数器。
 
-[管理 API Keys](command:senseaudio.manageApiKeys) · [打开设置](command:senseaudio.openSettings)
+[管理 API Keys](command:any2copilot.manageApiKeys) · [打开设置](command:any2copilot.openSettings)

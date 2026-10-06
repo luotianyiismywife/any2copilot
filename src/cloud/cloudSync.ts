@@ -8,9 +8,9 @@ import { getApiKeyStore, saveApiKeyStore, invalidateApiKeyStoreCache, type ApiKe
  * 使用 VS Code 内置的 GitHub 登录（vscode.authentication.getSession）获取 token，
  * 将 key/cookie/备注 三元组存储到一个私密 Gist 中，实现跨机器同步。
  *
- * - 推送（senseaudio.syncPush）：本地 store → Gist（手动触发）
- * - 拉取（senseaudio.syncPull）：Gist → 本地 store（手动触发）
- * - 启动自动拉取（senseaudio.cloudSyncAutoPull，默认开启）：静默检查云端
+ * - 推送（any2copilot.syncPush）：本地 store → Gist（手动触发）
+ * - 拉取（any2copilot.syncPull）：Gist → 本地 store（手动触发）
+ * - 启动自动拉取（any2copilot.cloudSyncAutoPull，默认开启）：静默检查云端
  *   updatedAt 是否比本地上次同步时间新，是则拉取覆盖本地并弹窗提示。
  *
  * Gist 定位：优先使用 globalState 缓存的 gist id；缺失时按 description
@@ -22,8 +22,8 @@ const GIST_DESCRIPTION = "copilot-provider key sync (do not edit manually)";
 const GIST_FILE_NAME = "copilot-provider-keys.json";
 const GIST_API_BASE = "https://api.github.com/gists";
 
-const GLOBAL_STATE_GIST_ID = "senseaudio.cloudSyncGistId";
-const GLOBAL_STATE_LAST_SYNC_AT = "senseaudio.lastCloudSyncAt";
+const GLOBAL_STATE_GIST_ID = "any2copilot.cloudSyncGistId";
+const GLOBAL_STATE_LAST_SYNC_AT = "any2copilot.lastCloudSyncAt";
 
 // push/pull 互斥：两者都是"读 store → 网络等待 → 写 store"，并发重叠时
 // pull 会用旧 store 快照覆盖 push 的结果（last-writer-wins），push 期间
@@ -154,7 +154,7 @@ function buildPayload(keys: ApiKeyEntry[]): SyncPayload {
 }
 
 /**
- * 推送本地 key/cookie/备注 到云端 Gist（senseaudio.syncPush 命令）。
+ * 推送本地 key/cookie/备注 到云端 Gist（any2copilot.syncPush 命令）。
  * 未登录 GitHub 时弹出登录界面。成功后记录 globalState 同步时间。
  */
 export async function pushToCloud(context: vscode.ExtensionContext): Promise<void> {
@@ -246,7 +246,7 @@ async function pushToCloudInner(context: vscode.ExtensionContext, session: vscod
 }
 
 /**
- * 从云端 Gist 拉取 key/cookie/备注 覆盖本地（senseaudio.syncPull 命令）。
+ * 从云端 Gist 拉取 key/cookie/备注 覆盖本地（any2copilot.syncPull 命令）。
  * 合并策略：云端为源——按 key 值对齐，云端条目覆盖本地 cookie/label，
  * 云端有本地无的条目追加，本地有云端无的条目删除；可用性状态（available/
  * lastCheckedAt）为本地数据，按 key 值保留。
@@ -376,11 +376,11 @@ async function pullFromCloudInner(
 
 /**
  * 启动自动拉取（fire-and-forget，不阻塞激活）。
- * 读取 senseaudio.cloudSyncAutoPull 配置（默认开启）；未登录 GitHub 时静默跳过，
+ * 读取 any2copilot.cloudSyncAutoPull 配置（默认开启）；未登录 GitHub 时静默跳过，
  * 不弹登录界面；云端无更新时静默跳过。
  */
 export function autoPullOnStartup(context: vscode.ExtensionContext): void {
-    const enabled = vscode.workspace.getConfiguration().get<boolean>("senseaudio.cloudSyncAutoPull", true);
+    const enabled = vscode.workspace.getConfiguration().get<boolean>("any2copilot.cloudSyncAutoPull", true);
     if (!enabled) {
         return;
     }

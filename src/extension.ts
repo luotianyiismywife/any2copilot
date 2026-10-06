@@ -30,13 +30,13 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Login PASETO token (60-day validity) lives in globalState — shared with
     // the API-key manager UI and the plan-usage status bar.
-    const getLoginToken = (): string | undefined => context.globalState.get<string>("senseaudio.loginToken");
+    const getLoginToken = (): string | undefined => context.globalState.get<string>("any2copilot.loginToken");
 
     const tokenCountStatusBarItem: vscode.StatusBarItem = initStatusBar(context, getLoginToken);
     const provider = new ChatModelProvider(context.secrets, tokenCountStatusBarItem);
 
     // Register the provider under the vendor id used in package.json
-    vscode.lm.registerLanguageModelChatProvider("senseaudio", provider);
+    vscode.lm.registerLanguageModelChatProvider("any2copilot", provider);
 
     // Register all commands and configuration listeners
     registerCommands(context, provider);

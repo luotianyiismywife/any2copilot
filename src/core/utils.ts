@@ -12,7 +12,7 @@ const RETRY_MAX_INTERVAL_MS = 60000;
 //
 // Deliberately limited to **gateway** errors (502/504) — a quick retry often
 // clears a transient gateway blip. Platform errors that the whole-round retry
-// already handles (429/500/503, see `senseaudio.transientRetryStatusCodes`)
+// already handles (429/500/503, see `any2copilot.transientRetryStatusCodes`)
 // are intentionally ABSENT: retrying them here first would multiply the two
 // retry layers (maxAttempts × (transientRetryTimes + 1) attempts) and delay
 // failover to another key. Network errors are retried separately via
@@ -96,7 +96,7 @@ export function convertToolsToOpenAI(
  *
  * This is the **HTTP layer** retry (same request, immediate backoff). It is
  * distinct from the **whole-round** retry in `provider/rotation.ts`
- * (`senseaudio.transientRetry*`), which re-runs the entire key-rotation loop
+ * (`any2copilot.transientRetry*`), which re-runs the entire key-rotation loop
  * and can therefore also handle platform-side errors without switching keys.
  *
  * The two layers multiply: a request that fails with a status code present in
@@ -104,7 +104,7 @@ export function convertToolsToOpenAI(
  * Keep `maxAttempts` small (default 2) to avoid long hangs.
  */
 export function createRetryConfig(): RetryConfig {
-    const config = vscode.workspace.getConfiguration("senseaudio.retry");
+    const config = vscode.workspace.getConfiguration("any2copilot.retry");
     const enabled = config.get<boolean>("enabled", true);
     const maxAttempts = config.get<number>("maxAttempts", RETRY_MAX_ATTEMPTS);
     const intervalMs = config.get<number>("intervalMs", RETRY_INTERVAL_MS);

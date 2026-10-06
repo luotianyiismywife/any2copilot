@@ -26,9 +26,9 @@ import { ensureModelsDevLoaded, lookupModelDevEntry, type ModelsDevEntry } from 
  * models.dev / OpenRouter 目录里）。留空对象即可——未知模型默认按 `false`
  * （纯文本）处理，走 ask_image 代理，不会因真实图片请求失败。
  *
- * 示例（SenseAudio）：
- *   "senseaudio-s2": false,
- *   "senseaudio-s2-flash": false,
+ * 示例：
+ *   "example-model": false,
+ *   "example-model-vision": true,
  */
 const HARDCODED_VISION: Record<string, boolean> = {
     // 移植时填入你平台的模型 ID → 是否支持视觉

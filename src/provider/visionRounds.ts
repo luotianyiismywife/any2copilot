@@ -68,8 +68,8 @@ export async function handleInterceptedToolCall(params: VisionRoundParams): Prom
     }
 
     const config = vscode.workspace.getConfiguration();
-    const visionModelId = config.get<string>("senseaudio.visionProxyModel", "qwen3.6-35b-a3b");
-    const maxRounds = config.get<number>("senseaudio.visionMaxRounds", 5);
+    const visionModelId = config.get<string>("any2copilot.visionProxyModel", "example-model");
+    const maxRounds = config.get<number>("any2copilot.visionMaxRounds", 5);
 
     // Accumulate messages across rounds
     let currentMessages: Record<string, unknown>[] = [...(storedMessages as Record<string, unknown>[])];
@@ -196,7 +196,7 @@ export async function handleInterceptedToolCall(params: VisionRoundParams): Prom
         // Build round messages
         // Create a fresh abort controller for this round
         const roundAbortController = new AbortController();
-        const roundTimeoutMs = vscode.workspace.getConfiguration().get<number>("senseaudio.requestTimeout", 600000);
+        const roundTimeoutMs = vscode.workspace.getConfiguration().get<number>("any2copilot.requestTimeout", 600000);
         const roundTimeoutId = setTimeout(() => {
             if (!roundAbortController.signal.aborted) {
                 roundAbortController.abort();

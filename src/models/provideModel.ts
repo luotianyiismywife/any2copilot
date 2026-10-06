@@ -214,7 +214,7 @@ export async function prepareLanguageModelChatInformation(
     // ── Auto model discovery toggle ──
     // When disabled, always use the built-in list (no /v1/models call, no
     // models.dev lookup). Default on.
-    const autoDiscoveryEnabled = config.get<boolean>("senseaudio.enableAutoModelDiscovery", true);
+    const autoDiscoveryEnabled = config.get<boolean>("any2copilot.enableAutoModelDiscovery", true);
 
     // ── Dynamic model list from /v1/models ──
     // Use the primary key — any valid key works for /v1/models (no balance check).
@@ -294,7 +294,7 @@ export async function prepareLanguageModelChatInformation(
     // "responses"       → only models with supports_responses=true (from /v1/models)
     // If the capability set is empty (API probe failed / not fetched yet), keep all
     // models rather than showing an empty list — the user can retry on next reload.
-    const apiModeSetting = config.get<string>("senseaudio.apiMode", "auto");
+    const apiModeSetting = config.get<string>("any2copilot.apiMode", "auto");
     if (apiModeSetting === "anthropic" && _anthropicModelIds.size > 0) {
         infos = infos.filter((info) => _anthropicModelIds.has(info.id));
     } else if (apiModeSetting === "responses" && _responsesModelIds.size > 0) {

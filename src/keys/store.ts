@@ -16,7 +16,7 @@ import type { ApiKeyEntry, ApiKeyStore } from "./types";
  */
 
 /**
- * 读取 API Key store。自动迁移旧版单 key（`senseaudio.apiKey`）为单元素列表；
+ * 读取 API Key store。自动迁移旧版单 key（`any2copilot.apiKey`）为单元素列表；
  * JSON 损坏时回退旧 key 并修复。结果缓存到内存。
  */
 export async function getApiKeyStore(secrets: vscode.SecretStorage): Promise<ApiKeyStore> {

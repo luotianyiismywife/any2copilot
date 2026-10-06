@@ -1,5 +1,5 @@
 /**
- * checkUsageCommand.ts — 套餐用量查询命令（`senseaudio.checkUsage`）。
+ * checkUsageCommand.ts — 套餐用量查询命令（`any2copilot.checkUsage`）。
  *
  * 强制刷新套餐用量（绕过 TTL）并弹窗展示窗口使用率 + 余额。
  * 同时绑定到状态栏条目点击（见 `ui/statusBar.ts`）。
@@ -26,7 +26,7 @@ import { refreshPlanUsageNow } from "../ui/statusBar";
  * - 一般失败 → 提示查看输出通道
  */
 export async function checkUsageCommand(context: vscode.ExtensionContext): Promise<void> {
-    const getLoginToken = (): string | undefined => context.globalState.get<string>("senseaudio.loginToken");
+    const getLoginToken = (): string | undefined => context.globalState.get<string>("any2copilot.loginToken");
     if (!getLoginToken()) {
         vscode.window.showInformationMessage(l10n("No login token configured. Set it via the Manage API Keys command first."));
         return;

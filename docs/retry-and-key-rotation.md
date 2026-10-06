@@ -100,7 +100,7 @@
 
 ## 3. 配置项总表
 
-> `<prefix>` 指设置前缀（默认 `senseaudio`，移植时全局替换，见 `PLATFORM_PORTING.md` §1.2）。
+> `<prefix>` 指设置前缀（当前 `any2copilot`，移植时全局替换，见 `PLATFORM_PORTING.md` §1.2）。
 
 ### 3.1 换 key 相关
 
@@ -136,12 +136,12 @@
 
 ```jsonc
 {
-  "senseaudio.apiKeyRotationStatusCodes": [401, 402, 429, 503],
-  "senseaudio.transientRetryStatusCodes": [429, 500, 503],
-  "senseaudio.transientRetryTimes": 3,
-  "senseaudio.apiKeyExhaustedCooldownMin": 10,
-  "senseaudio.retry.enabled": true,
-  "senseaudio.retry.maxAttempts": 2
+  "any2copilot.apiKeyRotationStatusCodes": [401, 402, 429, 503],
+  "any2copilot.transientRetryStatusCodes": [429, 500, 503],
+  "any2copilot.transientRetryTimes": 3,
+  "any2copilot.apiKeyExhaustedCooldownMin": 10,
+  "any2copilot.retry.enabled": true,
+  "any2copilot.retry.maxAttempts": 2
 }
 ```
 
@@ -151,8 +151,8 @@
 
 ```jsonc
 {
-  "senseaudio.transientRetryTimes": 5,          // 整轮重试 5 次
-  "senseaudio.retry.maxAttempts": 1             // HTTP 层不重试（避免相乘）
+  "any2copilot.transientRetryTimes": 5,          // 整轮重试 5 次
+  "any2copilot.retry.maxAttempts": 1             // HTTP 层不重试（避免相乘）
 }
 ```
 
@@ -162,7 +162,7 @@
 
 ```jsonc
 {
-  "senseaudio.apiKeyRotationStatusCodes": [401, 402, 429, 500, 503]
+  "any2copilot.apiKeyRotationStatusCodes": [401, 402, 429, 500, 503]
 }
 ```
 
@@ -172,7 +172,7 @@
 
 ```jsonc
 {
-  "senseaudio.transientRetryTimes": 0
+  "any2copilot.transientRetryTimes": 0
 }
 ```
 
@@ -180,7 +180,7 @@
 
 ```jsonc
 {
-  "senseaudio.retry.enabled": false
+  "any2copilot.retry.enabled": false
 }
 ```
 
@@ -188,8 +188,8 @@
 
 ```jsonc
 {
-  "senseaudio.apiKeyRotationStatusCodes": [401, 402, 403, 429, 503],
-  "senseaudio.transientRetryStatusCodes": [403, 429, 500, 503]
+  "any2copilot.apiKeyRotationStatusCodes": [401, 402, 403, 429, 503],
+  "any2copilot.transientRetryStatusCodes": [403, 429, 500, 503]
 }
 ```
 

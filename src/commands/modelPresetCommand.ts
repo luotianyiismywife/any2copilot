@@ -3,16 +3,16 @@ import { l10n, l10nFormat } from "../core/localize";
 import type { ModelPreset } from "../core/types";
 
 /**
- * 模型温度预设选择命令（`senseaudio.setModelPreset`）。
+ * 模型温度预设选择命令（`any2copilot.setModelPreset`）。
  * 提供命名预设（🎯 Precise / ⚖️ Balanced / 🔥 Creative 等）与自定义输入
  * （单个数字 = temperature，两个逗号分隔数字 = temperature + top_p）。
  */
 export async function setModelPresetCommand(): Promise<void> {
     const config = vscode.workspace.getConfiguration();
-    const presets = config.get<ModelPreset[]>("senseaudio.modelPresets", []);
-    const currentPresetId = config.get<string>("senseaudio.modelPreset", "custom");
-    const currentTemp = config.get<number | null>("senseaudio.temperature", null);
-    const currentTopP = config.get<number | null>("senseaudio.top_p", null);
+    const presets = config.get<ModelPreset[]>("any2copilot.modelPresets", []);
+    const currentPresetId = config.get<string>("any2copilot.modelPreset", "custom");
+    const currentTemp = config.get<number | null>("any2copilot.temperature", null);
+    const currentTopP = config.get<number | null>("any2copilot.top_p", null);
 
     interface PresetQuickPickItem extends vscode.QuickPickItem {
         presetId?: string;
@@ -59,8 +59,8 @@ export async function setModelPresetCommand(): Promise<void> {
         // User selected a named preset
         const matchedPreset = presets.find((p) => p.id === presetId);
         if (matchedPreset) {
-            await config.update("senseaudio.modelPreset", matchedPreset.id, vscode.ConfigurationTarget.Global);
-            await config.update("senseaudio.temperature", matchedPreset.temperature, vscode.ConfigurationTarget.Global);
+            await config.update("any2copilot.modelPreset", matchedPreset.id, vscode.ConfigurationTarget.Global);
+            await config.update("any2copilot.temperature", matchedPreset.temperature, vscode.ConfigurationTarget.Global);
             vscode.window.showInformationMessage(
                 l10nFormat("Set to temperature: {0} ({1})", String(matchedPreset.temperature), l10n(matchedPreset.label))
             );
@@ -101,11 +101,11 @@ export async function setModelPresetCommand(): Promise<void> {
             const trimmed = inputValue.trim();
             const parts = trimmed.split(",");
             const tempNum = parseFloat(parts[0].trim());
-            await config.update("senseaudio.modelPreset", "custom", vscode.ConfigurationTarget.Global);
-            await config.update("senseaudio.temperature", tempNum, vscode.ConfigurationTarget.Global);
+            await config.update("any2copilot.modelPreset", "custom", vscode.ConfigurationTarget.Global);
+            await config.update("any2copilot.temperature", tempNum, vscode.ConfigurationTarget.Global);
             if (parts.length === 2) {
                 const topPNum = parseFloat(parts[1].trim());
-                await config.update("senseaudio.top_p", topPNum, vscode.ConfigurationTarget.Global);
+                await config.update("any2copilot.top_p", topPNum, vscode.ConfigurationTarget.Global);
                 vscode.window.showInformationMessage(
                     l10nFormat("Set to temp: {0}, top_p: {1} (custom)", String(tempNum), String(topPNum))
                 );

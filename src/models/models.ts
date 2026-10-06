@@ -7,9 +7,9 @@ import { l10n } from "../core/localize";
  * Built-in model definition (see BUILT_IN_MODELS below).
  */
 interface BuiltInModelDef {
-    /** Base model ID sent to the API (e.g., "glm-5.3-flash") */
+    /** Base model ID sent to the API (e.g., "example-model") */
     baseId: string;
-    /** User-friendly display name (e.g., "GLM-5.3-Flash") */
+    /** User-friendly display name (e.g., "Example Model") */
     displayName: string;
     /** Whether the model supports image input */
     vision: boolean;
@@ -41,7 +41,7 @@ const DEFAULT_MAX_TOKENS = 4096;
 
 /**
  * Default ratio of the real context window to declare as `maxInputTokens`.
- * Overridable via the `senseaudio.maxInputTokensRatio` setting.
+ * Overridable via the `any2copilot.maxInputTokensRatio` setting.
  *
  * VS Code triggers agent auto-compaction (chat.summarizeAgentConversationHistory.enabled)
  * at ~90% of the declared maxInputTokens. Declaring the full context length
@@ -57,12 +57,12 @@ const MIN_MAX_INPUT_TOKENS_RATIO = 0.1;
 const MAX_MAX_INPUT_TOKENS_RATIO = 1.0;
 
 /**
- * Read the configurable maxInputTokens ratio from the `senseaudio.maxInputTokensRatio`
+ * Read the configurable maxInputTokens ratio from the `any2copilot.maxInputTokensRatio`
  * setting and clamp it into the valid range [0.1, 1.0]. Falls back to the default
  * (1.0) when the setting is missing or invalid.
  */
 export function getMaxInputTokensRatio(): number {
-    const configured = vscode.workspace.getConfiguration("senseaudio").get<number>("maxInputTokensRatio", DEFAULT_MAX_INPUT_TOKENS_RATIO);
+    const configured = vscode.workspace.getConfiguration("any2copilot").get<number>("maxInputTokensRatio", DEFAULT_MAX_INPUT_TOKENS_RATIO);
     if (typeof configured !== "number" || !Number.isFinite(configured)) {
         return DEFAULT_MAX_INPUT_TOKENS_RATIO;
     }
@@ -72,48 +72,18 @@ export function getMaxInputTokensRatio(): number {
 /**
  * Built-in model definitions.
  *
- * ⚠️ **移植对接点**：以下清单是 **SenseAudio 平台的示例数据**，移植时必须
- * 替换为你平台的模型。它是 `/v1/models` 不可用时的兜底列表（自动模型发现
- * 默认开启，正常情况下以 API 实时列表为准）。
- *
- * 示例数据来源：对照 SenseAudio 实时 `/v1/models`（2026-09-29，9 个 llm 模型）
- * 与官方模型页核实。该平台的 `/v1/models` **不返回任何规格字段**（仅
- * `id / display_name / mode / protocols / desc / created / owned_by`），
- * 因此规格取自官方文档 + models.dev + OpenRouter。
+ * ⚠️ **移植对接点**：以下清单是**示例数据**，移植时必须替换为你平台的模型。
+ * 它是 `/v1/models` 不可用时的兜底列表（自动模型发现默认开启，正常情况下以
+ * API 实时列表为准）。
  *
  * 移植时按你平台的情况填写每个模型的 `baseId` / `displayName` / `vision` /
- * `thinkingMode` / `contextLength` / `maxTokens`。
+ * `thinkingMode` / `contextLength` / `maxTokens`。字段含义见 `BuiltInModelDef`。
  */
 const BUILT_IN_MODELS: BuiltInModelDef[] = [
-    // ── 示例：SenseAudio 自研系列 ──
-    // S2: 1M context / 128K output. desc mentions 深度推理与复杂工具调用 (no vision).
-    { baseId: "senseaudio-s2", displayName: "SenseAudio-S2", vision: false, thinkingMode: "switchable", contextLength: 1000000, maxTokens: 131072 },
-    // S2-Flash / S2-Lite: 256K context / 64K output.
-    { baseId: "senseaudio-s2-flash", displayName: "SenseAudio-S2-Flash", vision: false, thinkingMode: "switchable", contextLength: 262144, maxTokens: 65536 },
-    { baseId: "senseaudio-s2-lite", displayName: "SenseAudio-S2-Lite", vision: false, thinkingMode: "switchable", contextLength: 262144, maxTokens: 65536 },
-
-    // ── SenseNova 系列 ──
-    // The official docs table lists "—" for every spec of this model, and it is
-    // absent from models.dev / OpenRouter. 256K / 64K is assumed (same class as
-    // the S2-Flash/Lite entries); revisit if the platform publishes real values.
-    { baseId: "sensenova-6.8-flash-lite", displayName: "SenseNova-6.8-Flash-Lite", vision: false, thinkingMode: "switchable", contextLength: 262144, maxTokens: 65536 },
-
-    // ── 其他厂商模型 ──
-    // Qwen3.8-27B: 256K context. Vision confirmed (models.dev attachment=true,
-    // OpenRouter input_modalities=[text,image,video]).
-    { baseId: "qwen3.8-27b", displayName: "Qwen3.8-27B", vision: true, thinkingMode: "switchable", contextLength: 262144, maxTokens: 32768 },
-    // Qwen3.6-35B-A3B: 256K context / 64K output. Vision confirmed by BOTH the
-    // API desc ("面向复杂多模态任务的视觉语言旗舰模型") and models.dev/OpenRouter.
-    { baseId: "qwen3.6-35b-a3b", displayName: "Qwen3.6-35B-A3B", vision: true, thinkingMode: "switchable", contextLength: 262144, maxTokens: 65536 },
-    // DeepSeek-V4.1-Flash: 1M context. Vision confirmed (models.dev attachment=true,
-    // OpenRouter input_modalities=[text,image]).
-    { baseId: "deepseek-v4.1-flash", displayName: "DeepSeek-V4.1-Flash", vision: true, thinkingMode: "switchable", contextLength: 1000000, maxTokens: 384000 },
-    // DeepSeek-V4-Flash-0731: 1M context / 384K output. Text-only
-    // (models.dev attachment=false, OpenRouter input_modalities=[text]).
-    { baseId: "deepseek-v4-flash-0731", displayName: "DeepSeek-V4-Flash-0731", vision: false, thinkingMode: "switchable", contextLength: 1000000, maxTokens: 393216 },
-    // GLM-5.3-Flash: 1M context / 128K output. Vision confirmed
-    // (models.dev attachment=true, OpenRouter input_modalities=[text,image,video]).
-    { baseId: "glm-5.3-flash", displayName: "GLM-5.3-Flash", vision: true, thinkingMode: "switchable", contextLength: 1000000, maxTokens: 131072 },
+    // 示例：可开关思考的纯文本模型
+    { baseId: "example-model", displayName: "Example Model", vision: false, thinkingMode: "switchable", contextLength: 128000, maxTokens: 8192 },
+    // 示例：支持视觉输入的模型
+    { baseId: "example-model-vision", displayName: "Example Model (Vision)", vision: true, thinkingMode: "switchable", contextLength: 128000, maxTokens: 8192 },
 ];
 
 /**

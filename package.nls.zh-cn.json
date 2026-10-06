@@ -33,9 +33,9 @@
 	"config.commitIncludeCommitDiff.desc": "启用后，风格参考中包含历史提交的实际代码变更（diff），帮助模型生成更符合项目提交风格的消息。默认: 关闭。",
 	"config.commitAttachContextFiles.desc": "启用后，生成提交消息时将仓库根目录的 AGENTS.md 和 README.md 内容附加上下文，帮助模型更好地理解项目。默认: 开启。",
 
-	"config.modelPreset.desc": "当前模型预设 ID。使用「设置模型预设」命令选择预设。设为「custom」可使用「senseaudio.temperature」和「senseaudio.top_p」手动输入的值。",
-	"config.temperature.desc": "模型温度 (0.0 - 2.0)。与「senseaudio.top_p」配对使用。仅在「senseaudio.modelPreset」设为「custom」时生效。",
-	"config.top_p.desc": "模型 top_p (0.0 - 1.0)。与「senseaudio.temperature」配对使用。仅在「senseaudio.modelPreset」设为「custom」时生效。",
+	"config.modelPreset.desc": "当前模型预设 ID。使用「设置模型预设」命令选择预设。设为「custom」可使用「any2copilot.temperature」和「any2copilot.top_p」手动输入的值。",
+	"config.temperature.desc": "模型温度 (0.0 - 2.0)。与「any2copilot.top_p」配对使用。仅在「any2copilot.modelPreset」设为「custom」时生效。",
+	"config.top_p.desc": "模型 top_p (0.0 - 1.0)。与「any2copilot.temperature」配对使用。仅在「any2copilot.modelPreset」设为「custom」时生效。",
 	"config.enableAutoModelDiscovery.desc": "启用自动模型发现。开启后，扩展将从 API 获取模型列表，过滤模型选择器仅显示服务器上可用的模型。不在 API 列表中的模型将被隐藏。服务器上存在但内置列表中没有的新模型将自动添加，并使用 models.dev 元数据推断能力——支持推理的模型带思考开关（可切换），不支持推理的模型思考常开。关闭后可看到所有内置模型，不受 API 可用性影响。",
 	"config.syncModelsOnStartup.desc": "启动时自动检查是否有新模型（每日最多一次）。同步结果以一行日志输出到扩展的输出通道。默认: 开启。",
 	"config.maxInputTokensRatio.desc": "每个模型声明为 maxInputTokens 的真实上下文窗口比例（0.1 - 1.0，默认 1.0）。VS Code 的 agent 自动压缩约在声明的 maxInputTokens 的 90% 处触发。**建议设为 0.8** —— 可使压缩在真实窗口约 72% 处触发，防止 BYOK 大窗口模型（如 1M token）按完整窗口声明（1.0）时压缩永不触发导致上下文溢出。不影响 API 请求体中的 context_length（始终使用真实值）。",
@@ -93,9 +93,9 @@
 	"walkthrough.title": "Copilot Provider Scaffold",
 	"walkthrough.description": "在 Copilot Chat 中配置你平台的模型。",
 	"walkthrough.setApiKey.title": "设置你的 API 密钥",
-	"walkthrough.setApiKey.description": "[获取 API 密钥](command:senseaudio.getApiKey)。\n[设置 API 密钥](command:senseaudio.setApiKey)",
+	"walkthrough.setApiKey.description": "[获取 API 密钥](command:any2copilot.getApiKey)。\n[设置 API 密钥](command:any2copilot.setApiKey)",
 	"walkthrough.showModels.title": "显示模型",
 	"walkthrough.showModels.description": "如果模型被隐藏，请打开 VS Code 的语言模型管理器并显示模型。\n[打开语言模型管理](command:workbench.action.chat.manage)",
 	"walkthrough.advancedSettings.title": "探索高级设置",
-	"walkthrough.advancedSettings.description": "自定义模型预设、配置视觉代理等。\n[打开设置](command:senseaudio.openSettings)"
+	"walkthrough.advancedSettings.description": "自定义模型预设、配置视觉代理等。\n[打开设置](command:any2copilot.openSettings)"
 }

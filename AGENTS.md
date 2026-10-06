@@ -63,11 +63,11 @@
 | **视觉代理配置** | 支持通过设置 `<prefix>.visionProxyModel`、`<prefix>.visionProxyThinking` 配置图片代理所使用的视觉模型和思考模式。**视觉模型仅从本供应商查找**（`findVisionModel` 多级回退匹配裸 ID/完整 ID）。**视觉代理模型动态选择**：`<prefix>.setVisionProxyModel` 命令从 `/v1/models` 动态加载视觉模型列表（视觉能力经 models.dev 判定），QuickPick 选择代替手填；API 不可用时回退手填 |
 | **安装欢迎页 (Walkthrough)** | 引导向导（3 个步骤：设置 API Key、显示模型、高级设置），**仅可手动打开**（命令面板 → Welcome: Open Walkthrough）。**不自动弹出** |
 
-> **注**：上表中的 `<prefix>` 指命令/设置前缀（默认 `senseaudio`，移植时全局替换，见 [`PLATFORM_PORTING.md`](../PLATFORM_PORTING.md) §1.2）。
+> **注**：上表中的 `<prefix>` 指命令/设置前缀（当前 `any2copilot`，移植时全局替换，见 [`PLATFORM_PORTING.md`](../PLATFORM_PORTING.md) §1.2）。
 
 ### 1.3 模型清单
 
-> ⚠️ **本脚手架的内置模型清单（`src/models/models.ts` 的 `BUILT_IN_MODELS`）是 SenseAudio 平台的示例数据，移植时必须替换为你平台的模型。**
+> ⚠️ **本脚手架的内置模型清单（`src/models/models.ts` 的 `BUILT_IN_MODELS`）是示例数据，移植时必须替换为你平台的模型。**
 
 内置模型定义的结构（`BuiltInModelDef`）：
 
@@ -411,11 +411,13 @@ scripts/
 └── dev/                                  # 开发调试
     ├── check-new-models.mjs              # 检查 API 新模型
     ├── check-settings.mjs                # 设置项一致性核对（挂到 compile）
+    ├── port.mjs                          # 批量移植（中性占位符 → 平台值，npm run port）
     └── audit-all.mjs                     # 完整审计（npm run audit，7 项检查）
 
 .vscode/                                  # 调试配置（F5 启动扩展宿主）
 docs/
 ├── multi-api-key-design.md               # 多 Key 轮换与失效切换设计
+├── neutralization.md                     # 中性化占位符与批量移植（port.mjs）
 ├── plan-usage-design.md                  # 套餐用量与余额显示设计
 ├── retry-and-key-rotation.md             # 重试与 Key 轮换配置指南（换 key / 不换 key）
 └── vscode-dev-notes.md                   # VS Code 开发经验（浏览器自动化 / MCP / 市场上传）

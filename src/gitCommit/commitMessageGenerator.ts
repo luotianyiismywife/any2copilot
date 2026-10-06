@@ -192,15 +192,15 @@ async function performCommitMsgGeneration(secrets: vscode.SecretStorage, gitDiff
     const startTime = Date.now();
     let modelId: string | undefined;
     try {
-        vscode.commands.executeCommand("setContext", "senseaudio.isGeneratingCommit", true);
+        vscode.commands.executeCommand("setContext", "any2copilot.isGeneratingCommit", true);
         const config = vscode.workspace.getConfiguration();
 
-        const customSystemPrompt = config.get<string>("senseaudio.commitMessagePrompt", "");
+        const customSystemPrompt = config.get<string>("any2copilot.commitMessagePrompt", "");
         let systemPrompt = customSystemPrompt || DEFAULT_PROMPT.system;
 
         // Fetch recent commits for style reference
-        const recentCommitsCount = config.get<number>("senseaudio.recentCommitsCount", 10);
-        const includeCommitDiff = config.get<boolean>("senseaudio.commitIncludeCommitDiff", false);
+        const recentCommitsCount = config.get<number>("any2copilot.recentCommitsCount", 10);
+        const includeCommitDiff = config.get<boolean>("any2copilot.commitIncludeCommitDiff", false);
         if (recentCommitsCount > 0 && repoPath) {
             const recentCommits = await getRecentCommits(repoPath, recentCommitsCount, { includeDiff: includeCommitDiff });
             if (recentCommits) {
@@ -214,7 +214,7 @@ async function performCommitMsgGeneration(secrets: vscode.SecretStorage, gitDiff
         const prompts: string[] = [];
 
         // Attach AGENTS.md and README.md context
-        const attachContextFiles = config.get<boolean>("senseaudio.commitAttachContextFiles", true);
+        const attachContextFiles = config.get<boolean>("any2copilot.commitAttachContextFiles", true);
         if (attachContextFiles && repoPath) {
             const contextFiles = ["AGENTS.md", "README.md"];
             for (const fileName of contextFiles) {
@@ -245,9 +245,8 @@ async function performCommitMsgGeneration(secrets: vscode.SecretStorage, gitDiff
         prompts.push(truncatedDiff);
         const prompt = prompts.join("\n\n");
 
-        // Use model from config or default to glm-5.3-flash (deepseek-v4-flash is
-        // no longer available on the API — 400 "模型未找到", 2026-09-19 tested)
-        const commitModelId = config.get<string>("senseaudio.commitModel", "glm-5.3-flash");
+        // Use model from config or the neutral default (replace with your platform's model)
+        const commitModelId = config.get<string>("any2copilot.commitModel", "example-model");
         // Fetch full model config (apiMode, max_completion_tokens, extra, etc.)
         const selectedModel: ProviderModelItem = getBuiltInModelConfig(commitModelId) ?? { id: commitModelId, owned_by: "provider" };
         // Commit messages are simple tasks — disable thinking to speed up generation.
@@ -270,7 +269,7 @@ async function performCommitMsgGeneration(secrets: vscode.SecretStorage, gitDiff
         }
 
         // Apply language instruction: auto mode lets the model infer from style reference
-        const commitLanguage = config.get<string>("senseaudio.commitLanguage", "auto");
+        const commitLanguage = config.get<string>("any2copilot.commitLanguage", "auto");
         if (commitLanguage !== "auto") {
             systemPrompt += ` Generate commit message in ${commitLanguage}.`;
         }
@@ -284,9 +283,9 @@ async function performCommitMsgGeneration(secrets: vscode.SecretStorage, gitDiff
         //   1. enableResponsesApi (default false) + model supports_responses=true → responses
         //   2. enableAnthropicApi (default false) + model supports_anthropic=true → anthropic
         //   3. otherwise → openai
-        const apiModeSetting = config.get<string>("senseaudio.apiMode", "auto");
-        const enableResponsesApi = config.get<boolean>("senseaudio.enableResponsesApi", false);
-        const enableAnthropicApi = config.get<boolean>("senseaudio.enableAnthropicApi", false);
+        const apiModeSetting = config.get<string>("any2copilot.apiMode", "auto");
+        const enableResponsesApi = config.get<boolean>("any2copilot.enableResponsesApi", false);
+        const enableAnthropicApi = config.get<boolean>("any2copilot.enableAnthropicApi", false);
         let apiMode: string;
         if (apiModeSetting === "openai" || apiModeSetting === "anthropic" || apiModeSetting === "responses") {
             apiMode = apiModeSetting;
@@ -498,13 +497,13 @@ async function performCommitMsgGeneration(secrets: vscode.SecretStorage, gitDiff
         logger.error("commit.error", { modelId: modelId ?? "unknown", error: errorMessage });
         vscode.window.showErrorMessage(`${l10n("Failed to generate commit message:")} ${errorMessage}`);
     } finally {
-        vscode.commands.executeCommand("setContext", "senseaudio.isGeneratingCommit", false);
+        vscode.commands.executeCommand("setContext", "any2copilot.isGeneratingCommit", false);
     }
 }
 
 export function abortCommitGeneration() {
     commitGenerationAbortController?.abort();
-    vscode.commands.executeCommand("setContext", "senseaudio.isGeneratingCommit", false);
+    vscode.commands.executeCommand("setContext", "any2copilot.isGeneratingCommit", false);
 }
 
 function extractCommitMessage(str: string): string {

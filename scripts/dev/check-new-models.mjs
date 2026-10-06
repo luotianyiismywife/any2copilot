@@ -21,9 +21,9 @@ import { fileURLToPath } from "node:url";
 
 // ⚠️ 移植对接点：API 根地址与 models.ts 路径。
 // 地址应与 src/platform/platformConfig.ts 的 API_BASE_URL 一致。
-const API_BASE_URL = "https://api.senseaudio.cn/v1/";
+const API_BASE_URL = "https://api.example.com/v1/";
 const MODELS_TS_PATH = fileURLToPath(new URL("../../src/models/models.ts", import.meta.url));
-const API_KEY_ENV = "SENSEAUDIO_API_KEY";
+const API_KEY_ENV = "PROVIDER_API_KEY";
 
 // ── Helpers ──
 

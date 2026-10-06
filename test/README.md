@@ -3,7 +3,7 @@
 > 所有测试运行前需先 `npm run compile`（除 `api-tests.mjs` 外，其余测试从 `out/` 加载编译产物）。
 >
 > **凭据一律从命令行参数或环境变量读取，不写入仓库**：
-> `SENSEAUDIO_API_KEY` / `SENSEAUDIO_PUBLIC_KEY` / `SENSEAUDIO_TEST_BANNED_KEY` / `SENSEAUDIO_TEST_NORMAL_KEY`
+> `PROVIDER_API_KEY` / `PROVIDER_PUBLIC_KEY` / `PROVIDER_TEST_BANNED_KEY` / `PROVIDER_TEST_NORMAL_KEY`
 > （移植时把环境变量前缀换成你平台的，见 `PLATFORM_PORTING.md` §1.2）
 
 ## 测试清单
@@ -45,10 +45,10 @@ node test/test-banned-rotation.mjs
 
 # 联网测试（需 API Key，从参数或环境变量读取）
 node test/api-tests.mjs <API_KEY> [openai|anthropic|responses|all]
-SENSEAUDIO_API_KEY=<key> node test/test-model-diff.mjs
-SENSEAUDIO_API_KEY=<key> node test/test-vision-check.mjs [MODEL_ID]
-SENSEAUDIO_API_KEY=<key> node test/test-responses-recheck.mjs
-SENSEAUDIO_PUBLIC_KEY=<pub-key> node test/test-apply-token.mjs
+PROVIDER_API_KEY=<key> node test/test-model-diff.mjs
+PROVIDER_API_KEY=<key> node test/test-vision-check.mjs [MODEL_ID]
+PROVIDER_API_KEY=<key> node test/test-responses-recheck.mjs
+PROVIDER_PUBLIC_KEY=<pub-key> node test/test-apply-token.mjs
 ```
 
 ---
@@ -64,10 +64,10 @@ SENSEAUDIO_PUBLIC_KEY=<pub-key> node test/test-apply-token.mjs
 
 | 环境变量 | 默认值 | 用途 |
 |----------|--------|------|
-| `SENSEAUDIO_TEST_MODEL` | `deepseek-v4.1-flash` | 主测试模型（OpenAI / Anthropic 协议） |
-| `SENSEAUDIO_TEST_THINKING_MODEL` | `glm-5.3-flash` | thinking + reasoning_effort 测试 |
-| `SENSEAUDIO_TEST_VISION_MODEL` | `qwen3.6-35b-a3b` | 图片输入测试 |
-| `SENSEAUDIO_TEST_RESP_MODELS` | `glm-5.3-flash,deepseek-v4-flash-0731,qwen3.8-27b` | Responses 协议测试（逗号分隔） |
+| `PROVIDER_TEST_MODEL` | `deepseek-v4.1-flash` | 主测试模型（OpenAI / Anthropic 协议） |
+| `PROVIDER_TEST_THINKING_MODEL` | `glm-5.3-flash` | thinking + reasoning_effort 测试 |
+| `PROVIDER_TEST_VISION_MODEL` | `qwen3.6-35b-a3b` | 图片输入测试 |
+| `PROVIDER_TEST_RESP_MODELS` | `glm-5.3-flash,deepseek-v4-flash-0731,qwen3.8-27b` | Responses 协议测试（逗号分隔） |
 
 > 移植时把默认模型 ID 换成你平台的。
 
@@ -95,7 +95,7 @@ SENSEAUDIO_PUBLIC_KEY=<pub-key> node test/test-apply-token.mjs
 
 ## 关键发现（平台差异，插件已适配）
 
-> 以下为 SenseAudio 平台的实测差异，**移植时按新平台重新探测**（方法见 `.copilot/api-reference.md`）。
+> 以下为示例平台的实测差异，**移植时按新平台重新探测**（方法见 `.copilot/api-reference.md`）。
 
 1. **Responses 端点工具格式与 OpenAI 不同（扁平化）**：
    - OpenAI: `{"type":"function","function":{"name","description","parameters"}}`（嵌套）

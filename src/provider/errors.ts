@@ -107,7 +107,7 @@ export async function tryTransientRetryRound(
  * models do.
  *
  * This is always active. The separate Advanced Token indicator can be
- * controlled via the "senseaudio.enableThirdPartyTokenIndicator" setting.
+ * controlled via the "any2copilot.enableThirdPartyTokenIndicator" setting.
  */
 export function reportNativeUsage(
     usage: StreamUsage,

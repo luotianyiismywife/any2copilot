@@ -6,7 +6,7 @@
  *
  * 运行前需 `npm run compile`。
  * 用法：node test/test-model-diff.mjs <API_KEY>
- *      或设置环境变量 SENSEAUDIO_API_KEY
+ *      或设置环境变量 PROVIDER_API_KEY
  */
 import { createRequire } from "node:module";
 
@@ -22,17 +22,17 @@ Module._load = function (request, parent, isMain) {
     return originalLoad.call(this, request, parent, isMain);
 };
 
-const KEY = process.argv[2] || process.env.SENSEAUDIO_API_KEY;
+const KEY = process.argv[2] || process.env.PROVIDER_API_KEY;
 if (!KEY) {
     console.error("用法：node test/test-model-diff.mjs <API_KEY>");
-    console.error("  或：SENSEAUDIO_API_KEY=<key> node test/test-model-diff.mjs");
+    console.error("  或：PROVIDER_API_KEY=<key> node test/test-model-diff.mjs");
     process.exit(1);
 }
 
 const { getBuiltInModelIds } = require("../out/models/models.js");
 const builtIn = [...getBuiltInModelIds()];
 
-const r = await fetch("https://api.senseaudio.cn/v1/models", {
+const r = await fetch("https://api.example.com/v1/models", {
     headers: { Authorization: `Bearer ${KEY}` },
 });
 if (!r.ok) {

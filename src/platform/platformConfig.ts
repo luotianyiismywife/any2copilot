@@ -10,7 +10,7 @@
  * - `PLATFORM_HEADERS`    — 用户中心接口的必需固定头（部分平台有域校验）
  * - `FALLBACK_TEST_MODEL` — 模型列表不可用时的兜底测试模型 ID
  *
- * 命令前缀（`senseaudio.`）与 languageModelChatProviders 的 `vendor` 是
+ * 命令前缀（`any2copilot.`）与 languageModelChatProviders 的 `vendor` 是
  * VS Code 静态声明（package.json contributes），无法运行时改——移植时用
  * 全局替换一次性改掉（见 PLATFORM_PORTING.md §1）。
  */
@@ -18,14 +18,14 @@
 // ── API 域 ──────────────────────────────────────────────────────────────
 
 /** OpenAI 兼容 API 根地址（以 / 结尾，子路径直接拼接） */
-export const API_BASE_URL = "https://api.senseaudio.cn/v1/";
+export const API_BASE_URL = "https://api.example.com/v1/";
 
 // ── 平台外围地址 ────────────────────────────────────────────────────────
 
 /** 获取 API Key 页面（"获取密钥"命令跳转目标） */
-export const PLATFORM_API_KEY_URL = "https://senseaudio.cn/api-platform/api-key";
+export const PLATFORM_API_KEY_URL = "https://example.com/api-platform/api-key";
 /** 用户中心账号信息端点（套餐用量 / 余额查询，Bearer 登录 PASETO token） */
-export const PLATFORM_USER_SELF_URL = "https://platform.senseaudio.cn/api/user/self";
+export const PLATFORM_USER_SELF_URL = "https://platform.example.com/api/user/self";
 
 // ── 用户中心接口固定头 ──────────────────────────────────────────────────
 
@@ -35,7 +35,7 @@ export const PLATFORM_USER_SELF_URL = "https://platform.senseaudio.cn/api/user/s
  */
 export const PLATFORM_HEADERS: Record<string, string> = {
     "x-platform": "WEB",
-    "x-product": "SenseAudio",
+    "x-product": "Example",
     "x-version": "1.0.2",
     "Accept": "application/json",
 };
@@ -46,11 +46,11 @@ export const PLATFORM_HEADERS: Record<string, string> = {
  * 模型列表不可用时的兜底测试模型 ID（key 可用性检测用）。
  * 注意：平台退役模型后此值会失效——优先用 /v1/models 实时列表。
  */
-export const FALLBACK_TEST_MODEL_ID = "deepseek-v4.1-flash";
+export const FALLBACK_TEST_MODEL_ID = "example-model";
 
 /**
  * 浏览器 localStorage 中登录 token 的来源说明（提示文案用）。
  * 移植时按新平台的存储结构改写。
  */
 export const LOGIN_TOKEN_SOURCE_HINT =
-    "F12 → Application → Local Storage → senseaudio.cn → user → state.token";
+    "F12 → Application → Local Storage → example.com → user → state.token";

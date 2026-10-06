@@ -5,14 +5,14 @@ import { getVisionSupportedModelIds } from "../models/visionModels";
 import { getApiModelMetadataList } from "../models/apiModelList";
 
 /**
- * 视觉代理模型选择命令（`senseaudio.setVisionProxyModel`）。
+ * 视觉代理模型选择命令（`any2copilot.setVisionProxyModel`）。
  *
  * 从 `/v1/models` 动态加载视觉模型列表（视觉能力经 models.dev 判定，见
  * `models/visionModels.ts`）供 QuickPick 选择，API 不可用时回退到手动输入。
  */
 export async function setVisionProxyModelCommand(context: vscode.ExtensionContext): Promise<void> {
     const config = vscode.workspace.getConfiguration();
-    const current = config.get<string>("senseaudio.visionProxyModel", "qwen3.6-35b-a3b");
+    const current = config.get<string>("any2copilot.visionProxyModel", "example-model");
     const primary = await getPrimaryApiKey(context.secrets);
     const visionIds = primary ? await getVisionSupportedModelIds(primary.value) : new Set<string>();
     // /v1/models desc is used as the picker tooltip (platform's own description).
@@ -71,7 +71,7 @@ export async function setVisionProxyModelCommand(context: vscode.ExtensionContex
         }
         newModel = entered.trim();
     }
-    await config.update("senseaudio.visionProxyModel", newModel, vscode.ConfigurationTarget.Global);
+    await config.update("any2copilot.visionProxyModel", newModel, vscode.ConfigurationTarget.Global);
     vscode.window.showInformationMessage(
         l10nFormat("Vision proxy model set to {0}", newModel)
     );

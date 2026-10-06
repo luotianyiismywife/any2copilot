@@ -281,7 +281,7 @@ export abstract class CommonApi<TMessage, TRequestBody> {
             return parameters;
         }
         const config = vscode.workspace.getConfiguration();
-        const defaultLines = config.get<number>("senseaudio.readFileLines", 0);
+        const defaultLines = config.get<number>("any2copilot.readFileLines", 0);
         if (defaultLines <= 0) {
             return parameters;
         }

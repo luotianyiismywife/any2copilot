@@ -24,7 +24,7 @@ export function registerCommands(
     // provideLanguageModelChatInformation and updates the picker without reload.
     context.subscriptions.push(
         vscode.workspace.onDidChangeConfiguration((e) => {
-            if (e.affectsConfiguration("senseaudio.apiMode") || e.affectsConfiguration("senseaudio.enableAutoModelDiscovery")) {
+            if (e.affectsConfiguration("any2copilot.apiMode") || e.affectsConfiguration("any2copilot.enableAutoModelDiscovery")) {
                 provider.notifyModelListChanged();
             }
         })
@@ -33,7 +33,7 @@ export function registerCommands(
     // Management command to configure API key (legacy single-key flow,
     // writes into the new multi-key store as a single-element list)
     context.subscriptions.push(
-        vscode.commands.registerCommand("senseaudio.setApiKey", async () => {
+        vscode.commands.registerCommand("any2copilot.setApiKey", async () => {
             const store = await getApiKeyStore(context.secrets);
             const existing = store.keys.length > 0 ? store.keys[store.activeIndex]?.value : undefined;
             const apiKey = await vscode.window.showInputBox({
@@ -48,8 +48,8 @@ export function registerCommands(
             }
             if (!apiKey.trim()) {
                 // Clear all keys
-                await context.secrets.store("senseaudio.apiKeys", JSON.stringify({ keys: [], activeIndex: 0 }));
-                await context.secrets.delete("senseaudio.apiKey");
+                await context.secrets.store("any2copilot.apiKeys", JSON.stringify({ keys: [], activeIndex: 0 }));
+                await context.secrets.delete("any2copilot.apiKey");
                 vscode.window.showInformationMessage(l10n("API key cleared."));
                 return;
             }
@@ -73,7 +73,7 @@ export function registerCommands(
     // Multi-key management command: QuickPick to add/delete keys, set current,
     // bind cookies, reset exhausted states, and manually test availability.
     context.subscriptions.push(
-        vscode.commands.registerCommand("senseaudio.manageApiKeys", async () => {
+        vscode.commands.registerCommand("any2copilot.manageApiKeys", async () => {
             await showApiKeyManager(context);
         })
     );
@@ -82,38 +82,38 @@ export function registerCommands(
     // /v1/models + models.dev (visionModels.ts) so the user can pick instead of typing
     // the model ID by hand. Falls back to manual input when the API is unavailable.
     context.subscriptions.push(
-        vscode.commands.registerCommand("senseaudio.setVisionProxyModel", async () => {
+        vscode.commands.registerCommand("any2copilot.setVisionProxyModel", async () => {
             await setVisionProxyModelCommand(context);
         })
     );
 
     // Command to open the platform website to get an API key
     context.subscriptions.push(
-        vscode.commands.registerCommand("senseaudio.getApiKey", () => {
+        vscode.commands.registerCommand("any2copilot.getApiKey", () => {
             vscode.env.openExternal(vscode.Uri.parse(PLATFORM_API_KEY_URL));
         })
     );
 
     // Command to open extension settings
     context.subscriptions.push(
-        vscode.commands.registerCommand("senseaudio.openSettings", () => {
+        vscode.commands.registerCommand("any2copilot.openSettings", () => {
             vscode.commands.executeCommand("workbench.action.openSettings", `@ext:${context.extension.id}`);
         })
     );
 
     // Register the generateGitCommitMessage command handler
     context.subscriptions.push(
-        vscode.commands.registerCommand("senseaudio.generateGitCommitMessage", async (scm) => {
+        vscode.commands.registerCommand("any2copilot.generateGitCommitMessage", async (scm) => {
             generateCommitMsg(context.secrets, scm);
         }),
-        vscode.commands.registerCommand("senseaudio.abortGitCommitMessage", () => {
+        vscode.commands.registerCommand("any2copilot.abortGitCommitMessage", () => {
             abortCommitGeneration();
         })
     );
 
     // Register the setModelPreset command: user can select a preset via QuickPick
     context.subscriptions.push(
-        vscode.commands.registerCommand("senseaudio.setModelPreset", async () => {
+        vscode.commands.registerCommand("any2copilot.setModelPreset", async () => {
             await setModelPresetCommand();
         })
     );
@@ -121,10 +121,10 @@ export function registerCommands(
     // Cloud sync commands: push/pull key/cookie/label triples to a private
     // GitHub Gist via VS Code's built-in GitHub sign-in.
     context.subscriptions.push(
-        vscode.commands.registerCommand("senseaudio.syncPush", async () => {
+        vscode.commands.registerCommand("any2copilot.syncPush", async () => {
             await pushToCloud(context);
         }),
-        vscode.commands.registerCommand("senseaudio.syncPull", async () => {
+        vscode.commands.registerCommand("any2copilot.syncPull", async () => {
             await pullFromCloud(context);
         })
     );
@@ -132,7 +132,7 @@ export function registerCommands(
     // Plan usage command: refresh and show the 5h/weekly/monthly windows plus
     // the balance. Also bound to clicking the status bar item.
     context.subscriptions.push(
-        vscode.commands.registerCommand("senseaudio.checkUsage", async () => {
+        vscode.commands.registerCommand("any2copilot.checkUsage", async () => {
             await checkUsageCommand(context);
         })
     );

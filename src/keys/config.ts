@@ -7,7 +7,7 @@ import type { ApiKeyMode, SingleKeyFallback } from "./types";
  */
 
 function getConfig(): vscode.WorkspaceConfiguration {
-    return vscode.workspace.getConfiguration("senseaudio");
+    return vscode.workspace.getConfiguration("any2copilot");
 }
 
 /** 读取 key 使用模式（默认 sticky；非法值回退 sticky） */

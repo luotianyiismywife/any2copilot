@@ -49,7 +49,7 @@ let usageRefreshInFlight = false;
  * Default on — the tooltip is only visible on hover, so it costs nothing.
  */
 function isUsageTooltipEnabled(): boolean {
-    return vscode.workspace.getConfiguration().get<boolean>("senseaudio.showUsageInTooltip", true);
+    return vscode.workspace.getConfiguration().get<boolean>("any2copilot.showUsageInTooltip", true);
 }
 
 /**
@@ -58,12 +58,12 @@ function isUsageTooltipEnabled(): boolean {
  * subscription-based provider (token counts remain in the tooltip).
  */
 function isUsageInStatusBarEnabled(): boolean {
-    return vscode.workspace.getConfiguration().get<boolean>("senseaudio.showUsageInStatusBar", true);
+    return vscode.workspace.getConfiguration().get<boolean>("any2copilot.showUsageInStatusBar", true);
 }
 
 /** Background refresh interval in ms (clamped to 1-60 minutes). */
 function getUsageRefreshIntervalMs(): number {
-    const minutes = vscode.workspace.getConfiguration().get<number>("senseaudio.usageRefreshInterval", 5);
+    const minutes = vscode.workspace.getConfiguration().get<number>("any2copilot.usageRefreshInterval", 5);
     const clamped = Number.isFinite(minutes) ? Math.min(Math.max(minutes, 1), 60) : 5;
     return clamped * 60 * 1000;
 }
@@ -227,7 +227,7 @@ export function initStatusBar(
     tokenCountStatusBarItem.text = `$(pulse) --`;
     tokenCountStatusBarItem.tooltip = l10n("Plan usage and token usage");
     // Clicking the status bar refreshes the plan usage immediately
-    tokenCountStatusBarItem.command = "senseaudio.checkUsage";
+    tokenCountStatusBarItem.command = "any2copilot.checkUsage";
     context.subscriptions.push(tokenCountStatusBarItem);
 
     // Plan usage polling for the status bar text and tooltip section
@@ -240,10 +240,10 @@ export function initStatusBar(
     context.subscriptions.push(
         vscode.workspace.onDidChangeConfiguration((e) => {
             const usageSettingChanged =
-                e.affectsConfiguration("senseaudio.showUsageInTooltip") ||
-                e.affectsConfiguration("senseaudio.showUsageInStatusBar") ||
-                e.affectsConfiguration("senseaudio.usageRefreshInterval");
-            const indicatorChanged = e.affectsConfiguration("senseaudio.enableThirdPartyTokenIndicator");
+                e.affectsConfiguration("any2copilot.showUsageInTooltip") ||
+                e.affectsConfiguration("any2copilot.showUsageInStatusBar") ||
+                e.affectsConfiguration("any2copilot.usageRefreshInterval");
+            const indicatorChanged = e.affectsConfiguration("any2copilot.enableThirdPartyTokenIndicator");
             if (!usageSettingChanged && !indicatorChanged) {
                 return;
             }
@@ -272,7 +272,7 @@ export function initStatusBar(
  * Default off — the native Copilot indicator is always reported separately.
  */
 function isThirdPartyIndicatorEnabled(): boolean {
-    return vscode.workspace.getConfiguration().get<boolean>("senseaudio.enableThirdPartyTokenIndicator", false);
+    return vscode.workspace.getConfiguration().get<boolean>("any2copilot.enableThirdPartyTokenIndicator", false);
 }
 
 /**

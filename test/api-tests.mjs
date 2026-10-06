@@ -1,14 +1,14 @@
 /**
- * SenseAudio API 三协议完整测试脚本 (v2 - 修正非流式/流式解析)
+ * 三协议完整测试脚本 (v2 - 修正非流式/流式解析)
  *
  * 用法:
  *   node test/api-tests.mjs <API_KEY> [openai|anthropic|responses|all]
  *
- * 模型 ID 可用环境变量覆盖（默认取当前平台在售模型，2026-09-29 实测）：
- *   SENSEAUDIO_TEST_MODEL          主测试模型（默认 deepseek-v4.1-flash）
- *   SENSEAUDIO_TEST_THINKING_MODEL 思考/effort 测试模型（默认 glm-5.3-flash）
- *   SENSEAUDIO_TEST_VISION_MODEL   图片输入测试模型（默认 qwen3.6-35b-a3b）
- *   SENSEAUDIO_TEST_RESP_MODELS    Responses 测试模型（逗号分隔）
+ * 模型 ID 可用环境变量覆盖（默认值为中性占位，移植时换成你平台的模型）：
+ *   PROVIDER_TEST_MODEL          主测试模型（默认 example-model）
+ *   PROVIDER_TEST_THINKING_MODEL 思考/effort 测试模型（默认 example-model）
+ *   PROVIDER_TEST_VISION_MODEL   图片输入测试模型（默认 example-model）
+ *   PROVIDER_TEST_RESP_MODELS    Responses 测试模型（逗号分隔）
  */
 const API_KEY = process.argv[2];
 const filter = process.argv[3] || "all";
@@ -17,13 +17,13 @@ if (!API_KEY) {
     process.exit(1);
 }
 
-// 当前平台在售模型（2026-09-29 实测 /v1/models 返回 9 个 llm 模型）
-const TEST_MODEL = process.env.SENSEAUDIO_TEST_MODEL || "deepseek-v4.1-flash";
-const THINKING_MODEL = process.env.SENSEAUDIO_TEST_THINKING_MODEL || "glm-5.3-flash";
-const VISION_MODEL = process.env.SENSEAUDIO_TEST_VISION_MODEL || "qwen3.6-35b-a3b";
-const RESP_MODELS = (process.env.SENSEAUDIO_TEST_RESP_MODELS || "glm-5.3-flash,deepseek-v4-flash-0731,qwen3.8-27b").split(",");
+// 移植时换成你平台在售的模型 ID
+const TEST_MODEL = process.env.PROVIDER_TEST_MODEL || "example-model";
+const THINKING_MODEL = process.env.PROVIDER_TEST_THINKING_MODEL || "example-model";
+const VISION_MODEL = process.env.PROVIDER_TEST_VISION_MODEL || "example-model";
+const RESP_MODELS = (process.env.PROVIDER_TEST_RESP_MODELS || "example-model").split(",");
 
-const BASE = "https://api.senseaudio.cn/v1";
+const BASE = "https://api.example.com/v1";
 let passed = 0;
 let failed = 0;
 const failures = [];
@@ -75,7 +75,7 @@ const TOOLS = [
 /**
  * Responses 端点要求扁平工具格式（OpenAI 嵌套 function 格式不被接受）:
  *   { type: "function", name, description, parameters }
- * 这是 SenseAudio Responses 端点与 OpenAI 端点的差异之一。
+ * 这是平台 Responses 端点与 OpenAI 端点的差异之一。
  */
 const FLAT_TOOLS = [
     {
@@ -300,7 +300,7 @@ async function testErrors() {
 }
 
 async function main() {
-    console.log(`SenseAudio API 测试 (filter=${filter})`);
+    console.log(`Provider API 测试 (filter=${filter})`);
     console.log(`测试模型: 主=${TEST_MODEL} 思考=${THINKING_MODEL} 视觉=${VISION_MODEL}`);
     console.log(`Responses 模型: [${RESP_MODELS.join(", ")}]`);
 

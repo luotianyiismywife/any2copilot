@@ -7,8 +7,8 @@ import type { ApiKeyStore } from "./types";
  */
 
 /** SecretStorage 键名 */
-export const STORE_KEY = "senseaudio.apiKeys";
-export const LEGACY_KEY = "senseaudio.apiKey";
+export const STORE_KEY = "any2copilot.apiKeys";
+export const LEGACY_KEY = "any2copilot.apiKey";
 
 /** 内存缓存：避免每次读取都访问 SecretStorage */
 let storeCache: ApiKeyStore | null = null;

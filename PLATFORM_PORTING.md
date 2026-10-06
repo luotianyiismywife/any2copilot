@@ -5,7 +5,10 @@
 做新平台时按本清单逐项替换即可。
 
 > 脚手架自带**中性身份**（`name: any2copilot` / `displayName: Copilot Provider Scaffold`），
-> 但保留 `senseaudio` 作为**可运行的示例前缀**（vendor / 命令 / 设置键）。移植时按 §1 替换。
+> 命令/设置前缀与 vendor 均为 `any2copilot`。移植时按 §1 替换。
+>
+> **一键批量替换**：`npm run port -- --vendor <id> --name <pkg> --display "<名>" --api-base <url> --home <url> --user-self <url>`
+> （详见 [`docs/neutralization.md`](docs/neutralization.md)）。
 
 ## 1. 必改项（平台身份）
 
@@ -28,8 +31,8 @@
 移植时改成你平台的：
 
 - `name` / `publisher` / `displayName` / `description` / `repository` / `keywords`
-- `contributes.languageModelChatProviders[0].vendor`（示例值 `senseaudio` → 新平台名）
-- **命令前缀**：全部 `senseaudio.` → 新前缀（`src/` 全局替换 + package.json）
+- `contributes.languageModelChatProviders[0].vendor`（当前值 `any2copilot` → 新平台名）
+- **命令前缀**：全部 `any2copilot.` → 新前缀（`src/` 全局替换 + package.json）
 - `contributes.configuration.properties` 的设置键前缀（同上）
 
 > 扩展 ID（`<publisher>.<name>`）在运行时由 `context.extension.id` 动态获取
@@ -42,14 +45,14 @@
 
 ### 1.4 示例模型 ID（保留为可运行示例，移植时替换）
 
-脚手架保留 SenseAudio 作为**可运行的示例平台**，以下位置含示例模型 ID，移植时替换：
+脚手架使用中性占位（`any2copilot` / `example.com` / `example-model`），以下位置含示例值，移植时替换：
 
 | 位置 | 内容 |
 |------|------|
 | `src/models/models.ts` → `BUILT_IN_MODELS` | 内置模型清单（示例数据） |
 | `src/models/visionModels.ts` → `HARDCODED_VISION` | 平台自研模型的视觉能力兜底（示例为空对象） |
-| `package.json` → `senseaudio.commitModel` 默认值 | 提交消息生成默认模型 |
-| `package.json` → `senseaudio.visionProxyModel` 默认值 | 视觉代理默认模型 |
+| `package.json` → `any2copilot.commitModel` 默认值 | 提交消息生成默认模型 |
+| `package.json` → `any2copilot.visionProxyModel` 默认值 | 视觉代理默认模型 |
 | `src/commands/visionProxyCommand.ts` / `src/provider/visionRounds.ts` | 视觉代理默认模型（代码内兜底） |
 | `src/platform/platformConfig.ts` → `FALLBACK_TEST_MODEL_ID` | key 可用性检测兜底模型 |
 

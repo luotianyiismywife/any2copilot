@@ -31,7 +31,7 @@ import { buildKeyQuickPickItems } from "./apiKeyDisplay";
  * 流程上下文：SecretStorage + 登录 PASETO token 读写。
  *
  * 登录 token 存在 `globalState`（非 SecretStorage——token 本身是短期凭证，
- * 且需跨窗口共享），键名 `senseaudio.loginToken`。
+ * 且需跨窗口共享），键名 `any2copilot.loginToken`。
  */
 export interface KeyManagerContext {
     secrets: vscode.SecretStorage;
