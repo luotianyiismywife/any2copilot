@@ -8,7 +8,7 @@ import { logger } from "../core/logger";
 /**
  * Startup model sync.
  *
- * On every VS Code window open the extension checks whether the SenseAudio
+ * On every VS Code window open the extension checks whether the platform
  * API has any new models. To avoid hammering the API, the check runs at most
  * once per day (tracked via globalState). Sync results are reported as a
  * single log line in the extension's Output channel — no

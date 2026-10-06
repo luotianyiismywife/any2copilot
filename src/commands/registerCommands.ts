@@ -8,7 +8,7 @@ import { setVisionProxyModelCommand } from "./visionProxyCommand";
 import { setModelPresetCommand } from "./modelPresetCommand";
 import { checkUsageCommand } from "./checkUsageCommand";
 import { PLATFORM_API_KEY_URL } from "../platform/platformConfig";
-import type { SenseAudioChatModelProvider } from "../provider/provider";
+import type { ChatModelProvider } from "../provider/provider";
 
 /**
  * 注册扩展的全部命令与配置变更监听。
@@ -16,7 +16,7 @@ import type { SenseAudioChatModelProvider } from "../provider/provider";
  */
 export function registerCommands(
     context: vscode.ExtensionContext,
-    provider: SenseAudioChatModelProvider,
+    provider: ChatModelProvider,
 ): void {
     // Refresh the model list dynamically when the API mode (or auto model
     // discovery) setting changes — the provider fires
@@ -87,7 +87,7 @@ export function registerCommands(
         })
     );
 
-    // Command to open the SenseAudio website to get an API key
+    // Command to open the platform website to get an API key
     context.subscriptions.push(
         vscode.commands.registerCommand("senseaudio.getApiKey", () => {
             vscode.env.openExternal(vscode.Uri.parse(PLATFORM_API_KEY_URL));

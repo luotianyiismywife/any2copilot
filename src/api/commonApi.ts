@@ -8,7 +8,7 @@ import {
     Progress,
     CancellationToken,
 } from "vscode";
-import { SenseAudioModelItem } from "../core/types";
+import { ProviderModelItem } from "../core/types";
 import { tryParseJSONObject, isImageMimeType, isToolResultPart, storeDataUriImages } from "../core/utils";
 import { VersionManager } from "../core/versionManager";
 import type { InterceptedToolCall, StoredImage } from "../vision/types";
@@ -171,7 +171,7 @@ export abstract class CommonApi<TMessage, TRequestBody> {
      */
     abstract prepareRequestBody(
         rb: TRequestBody,
-        um: SenseAudioModelItem | undefined,
+        um: ProviderModelItem | undefined,
         options?: ProvideLanguageModelChatResponseOptions
     ): TRequestBody;
 
@@ -518,7 +518,7 @@ export abstract class CommonApi<TMessage, TRequestBody> {
      * 三协议 `prepareRequestBody` 共用。Anthropic 在 thinking 强制 enabled 时
      * 需整体跳过温度控制，由调用方自行判断后决定是否调用本方法。
      */
-    protected applyTemperature(rb: Record<string, unknown>, um: SenseAudioModelItem | undefined): void {
+    protected applyTemperature(rb: Record<string, unknown>, um: ProviderModelItem | undefined): void {
         if (um?.temperature !== undefined && um.temperature !== null && um.supportsTemperature !== false) {
             rb.temperature = um.temperature;
         }
@@ -532,7 +532,7 @@ export abstract class CommonApi<TMessage, TRequestBody> {
      *
      * 三协议 `prepareRequestBody` 共用。
      */
-    protected mergeExtraParams(rb: Record<string, unknown>, um: SenseAudioModelItem | undefined): void {
+    protected mergeExtraParams(rb: Record<string, unknown>, um: ProviderModelItem | undefined): void {
         if (um?.extra && typeof um.extra === "object") {
             for (const [key, value] of Object.entries(um.extra)) {
                 if (value !== undefined) {

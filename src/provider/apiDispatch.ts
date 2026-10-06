@@ -6,7 +6,7 @@ import type {
     Progress,
     ProvideLanguageModelChatResponseOptions,
 } from "vscode";
-import type { SenseAudioModelItem } from "../core/types";
+import type { ProviderModelItem } from "../core/types";
 import { createRetryConfig, executeWithRetry } from "../core/utils";
 import { logger } from "../core/logger";
 import { OpenaiApi } from "../api/openai/openaiApi";
@@ -26,7 +26,7 @@ import { handleInterceptedToolCall } from "./visionRounds";
 export interface ApiRequestParams {
     apiMode: string;
     model: LanguageModelChatInformation;
-    um: SenseAudioModelItem | undefined;
+    um: ProviderModelItem | undefined;
     modelConfig: { includeReasoningInRequest: boolean; vision: boolean };
     messages: readonly LanguageModelChatRequestMessage[];
     options: ProvideLanguageModelChatResponseOptions;

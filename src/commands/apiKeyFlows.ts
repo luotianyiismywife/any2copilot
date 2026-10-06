@@ -90,7 +90,7 @@ export async function queryBalanceFlow(ctx: KeyManagerContext): Promise<void> {
 export async function addKeyFlow(ctx: KeyManagerContext): Promise<boolean> {
     const keyValue = await vscode.window.showInputBox({
         title: l10n("Add API Key"),
-        prompt: l10n("Enter your SenseAudio API key"),
+        prompt: l10n("Enter your API key"),
         ignoreFocusOut: true,
         password: true,
     });

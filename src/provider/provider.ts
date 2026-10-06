@@ -12,7 +12,7 @@ import {
 
 import * as path from "path";
 
-import type { SenseAudioModelItem } from "../core/types";
+import type { ProviderModelItem } from "../core/types";
 
 import { createRetryConfig } from "../core/utils";
 
@@ -41,7 +41,7 @@ import { executeApiRequest } from "./apiDispatch";
 export { REASON_TEXT, buildAllKeysUnavailableDetail, tryTransientRetryRound } from "./errors";
 
 /**
- * VS Code Chat provider backed by SenseAudio API.
+ * VS Code Chat provider backed by the platform API.
  *
  * 本类只负责 VS Code 接口实现与请求编排；具体逻辑分散在：
  * - `requestOptions.ts` — 推理强度 / temperature / apiMode 决策
@@ -50,7 +50,7 @@ export { REASON_TEXT, buildAllKeysUnavailableDetail, tryTransientRetryRound } fr
  * - `visionRounds.ts`   — ask_image 图片代理多轮
  * - `errors.ts`         — 错误文案、瞬态重试、原生 token 指示器
  */
-export class SenseAudioChatModelProvider implements LanguageModelChatProvider {
+export class ChatModelProvider implements LanguageModelChatProvider {
     /** Track last request completion time for delay calculation. */
     private _lastRequestTime: number | null = null;
 
@@ -175,7 +175,7 @@ export class SenseAudioChatModelProvider implements LanguageModelChatProvider {
         try {
             // Get built-in model config (with fallback to auto-discovered config)
             const config = vscode.workspace.getConfiguration();
-            let um: SenseAudioModelItem | undefined = getBuiltInModelConfig(model.id);
+            let um: ProviderModelItem | undefined = getBuiltInModelConfig(model.id);
             if (!um) {
                 um = getAutoDiscoveredModelConfig(model.id);
             }
@@ -382,7 +382,7 @@ export class SenseAudioChatModelProvider implements LanguageModelChatProvider {
             logger.info("request.end", { modelId: model.id, durationMs });
             this._lastRequestTime = Date.now();
 
-            // Auto-hide the status bar after inactivity — it only reflects SenseAudio
+            // Auto-hide the status bar after inactivity — it only reflects this provider's
             // model usage, so hide it once the user stops using these models.
             scheduleStatusBarHide(this.statusBarItem);
         }

@@ -62,7 +62,7 @@ export function resolveVisionCapability(
             return false;
         }
     }
-    // 3. Hardcoded fallback (SenseAudio's own models).
+    // 3. Hardcoded fallback (the platform's own models).
     return HARDCODED_VISION[modelId] ?? false;
 }
 

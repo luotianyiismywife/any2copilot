@@ -23,9 +23,9 @@ let cumulativeOutputTokens = 0;
 let cumulativeCacheHitTokens = 0;
 let cumulativeCacheMissTokens = 0;
 
-/** How long the status bar stays visible after the last SenseAudio model request. */
+/** How long the status bar stays visible after the last model request. */
 const STATUS_BAR_HIDE_DELAY_MS = 60 * 1000; // 1 minute of inactivity
-/** Module-level timer for auto-hiding the status bar when SenseAudio models are no longer in use. */
+/** Module-level timer for auto-hiding the status bar when the models are no longer in use. */
 let statusBarHideTimer: NodeJS.Timeout | null = null;
 
 /**
@@ -309,7 +309,7 @@ export function showTokenStatusBar(statusBarItem: vscode.StatusBarItem): void {
 /**
  * Schedule hiding the status bar after a period of inactivity.
  * Called when a chat request finishes; the bar stays visible while the user
- * keeps using SenseAudio models and auto-hides once they stop (e.g. switched
+ * keeps using this provider's models and auto-hides once they stop (e.g. switched
  * to another model provider).
  */
 export function scheduleStatusBarHide(statusBarItem: vscode.StatusBarItem, delayMs: number = STATUS_BAR_HIDE_DELAY_MS): void {

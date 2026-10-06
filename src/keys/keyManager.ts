@@ -1,5 +1,5 @@
 /**
- * SenseAudio 多 API Key 管理模块入口（barrel）。
+ * 多 API Key 管理模块入口（barrel）。
  *
  * 实现按职责拆分：
  * - `types.ts`     — ApiKeyEntry / ApiKeyStore / ApiKeyMode / SingleKeyFallback / KeyDisplayStatus

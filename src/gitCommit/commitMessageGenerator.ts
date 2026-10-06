@@ -10,7 +10,7 @@ import { getResponsesSupportedModelIds, getAnthropicSupportedModelIds } from "..
 import { logger } from "../core/logger";
 import { l10n, l10nFormat } from "../core/localize";
 import { API_BASE_URL } from "../platform/platformConfig";
-import type { SenseAudioModelItem } from "../core/types";
+import type { ProviderModelItem } from "../core/types";
 import {
     getApiKeyMode,
     getApiKeyStore,
@@ -249,7 +249,7 @@ async function performCommitMsgGeneration(secrets: vscode.SecretStorage, gitDiff
         // no longer available on the API — 400 "模型未找到", 2026-09-19 tested)
         const commitModelId = config.get<string>("senseaudio.commitModel", "glm-5.3-flash");
         // Fetch full model config (apiMode, max_completion_tokens, extra, etc.)
-        const selectedModel: SenseAudioModelItem = getBuiltInModelConfig(commitModelId) ?? { id: commitModelId, owned_by: "senseaudio" };
+        const selectedModel: ProviderModelItem = getBuiltInModelConfig(commitModelId) ?? { id: commitModelId, owned_by: "provider" };
         // Commit messages are simple tasks — disable thinking to speed up generation.
         selectedModel.enable_thinking = false;
         // Cap max_completion_tokens to avoid proxy 500 errors with oversized values

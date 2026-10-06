@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import type { ProvideLanguageModelChatResponseOptions } from "vscode";
-import type { ModelPreset, SenseAudioModelItem } from "../core/types";
+import type { ModelPreset, ProviderModelItem } from "../core/types";
 import { getAnthropicModelIds, getResponsesModelIds } from "../models/provideModel";
 import { getRequestedReasoningEffort } from "./errors";
 
@@ -17,7 +17,7 @@ import { getRequestedReasoningEffort } from "./errors";
  * - `"adaptive"` / `"high"` / `"max"` 等 → 开启思考并指定力度
  */
 export function applyReasoningEffort(
-    um: SenseAudioModelItem,
+    um: ProviderModelItem,
     options: ProvideLanguageModelChatResponseOptions
 ): void {
     const effort = getRequestedReasoningEffort(options);
@@ -45,7 +45,7 @@ export function applyReasoningEffort(
  * 模型声明 `fixedTopP`（如某模型仅接受 0.95）时覆盖用户/预设配置。
  */
 export function applyTemperature(
-    um: SenseAudioModelItem,
+    um: ProviderModelItem,
     config: vscode.WorkspaceConfiguration
 ): void {
     if (um.supportsTemperature === false) {

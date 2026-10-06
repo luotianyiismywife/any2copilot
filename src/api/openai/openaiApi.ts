@@ -7,7 +7,7 @@ import {
     Progress,
 } from "vscode";
 
-import type { SenseAudioModelItem } from "../../core/types";
+import type { ProviderModelItem } from "../../core/types";
 
 import type {
     OpenAIChatMessage,
@@ -223,7 +223,7 @@ export class OpenaiApi extends CommonApi<OpenAIChatMessage, Record<string, unkno
 
     prepareRequestBody(
         rb: Record<string, unknown>,
-        um: SenseAudioModelItem | undefined,
+        um: ProviderModelItem | undefined,
         options?: ProvideLanguageModelChatResponseOptions
     ): Record<string, unknown> {
         // temperature / top_p
@@ -243,7 +243,7 @@ export class OpenaiApi extends CommonApi<OpenAIChatMessage, Record<string, unkno
         }
 
         // Thinking mode (OpenAI-compatible format: {"thinking": {"type": "enabled"}})
-        // SenseAudio accepts only string values: "enabled" / "disabled" / "auto".
+        // The platform accepts only string values: "enabled" / "disabled" / "auto".
         // "adaptive" is rejected by the OpenAI endpoint — use "auto" instead.
         if (um?.enable_thinking === true) {
             if (um?.reasoning_effort === 'adaptive') {
@@ -258,7 +258,7 @@ export class OpenaiApi extends CommonApi<OpenAIChatMessage, Record<string, unkno
             rb.thinking = { type: "disabled" };
         }
 
-        // OpenRouter/SenseAudio reasoning configuration
+        // OpenRouter-style reasoning configuration
         if (um?.reasoning !== undefined && um.reasoning.enabled !== false) {
             const reasoningObj: Record<string, unknown> = {};
             const effort = um.reasoning.effort;
@@ -512,7 +512,7 @@ export class OpenaiApi extends CommonApi<OpenAIChatMessage, Record<string, unkno
      * Create a non-streaming chat message (for Git commit generation).
      */
     async *createMessage(
-        model: SenseAudioModelItem,
+        model: ProviderModelItem,
         systemPrompt: string,
         messages: { role: string; content: string }[],
         baseUrl: string,

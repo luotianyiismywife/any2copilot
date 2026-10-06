@@ -3,8 +3,9 @@ import { DEFAULT_VISION_PROMPT } from "./types";
 import type { StoredImage } from "./types";
 
 /**
- * Vendor id this extension registers its language models under
- * (see `extension.ts` → `vscode.lm.registerLanguageModelChatProvider("senseaudio", ...)`).
+ * Vendor id this extension registers its language models under.
+ * ⚠️ 必须与 `package.json` 的 `contributes.languageModelChatProviders[0].vendor`
+ * 及 `extension.ts` 的 `registerLanguageModelChatProvider(<vendor>, ...)` 一致。
  */
 const PROVIDER_VENDOR = "senseaudio";
 
@@ -29,17 +30,17 @@ function buildVisionOptions(): vscode.LanguageModelChatRequestOptions {
 }
 
 /**
- * Find a vision-capable language model from THIS provider (senseaudio).
+ * Find a vision-capable language model from THIS provider.
  *
  * The vision proxy always uses a model registered by this extension — the same
- * vendor as the main chat model — so a bare model id (e.g. "qwen3.6-35b-a3b")
- * must be matched against the vendor-qualified `LanguageModelChat.id`
- * (`senseaudio/qwen3.6-35b-a3b`); a plain `selectChatModels({ id })` would miss it.
+ * vendor as the main chat model — so a bare model id (e.g. "my-model") must be
+ * matched against the vendor-qualified `LanguageModelChat.id`
+ * (`<vendor>/my-model`); a plain `selectChatModels({ id })` would miss it.
  * We never fall back to other vendors' models with the same bare id, since that
  * could route image requests to a different platform (different auth/pricing).
  *
- * Accepts both a bare id ("qwen3.6-35b-a3b") and a vendor-qualified id
- * ("senseaudio/qwen3.6-35b-a3b") as the configured value.
+ * Accepts both a bare id ("my-model") and a vendor-qualified id
+ * ("<vendor>/my-model") as the configured value.
  */
 async function findVisionModel(visionModelId: string): Promise<vscode.LanguageModelChat | undefined> {
     const raw = visionModelId.trim();

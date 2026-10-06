@@ -7,7 +7,7 @@ import {
 	Progress,
 } from "vscode";
 
-import type { SenseAudioModelItem } from "../../core/types";
+import type { ProviderModelItem } from "../../core/types";
 
 import type {
 	AnthropicMessage,
@@ -255,7 +255,7 @@ export class AnthropicApi extends CommonApi<AnthropicMessage, AnthropicRequestBo
 
 	prepareRequestBody(
 		rb: AnthropicRequestBody,
-		um: SenseAudioModelItem | undefined,
+		um: ProviderModelItem | undefined,
 		options?: ProvideLanguageModelChatResponseOptions
 	): AnthropicRequestBody {
 		// Set max_tokens (required for Anthropic)
@@ -474,7 +474,7 @@ export class AnthropicApi extends CommonApi<AnthropicMessage, AnthropicRequestBo
 	 * Create a non-streaming chat message (for Git commit generation).
 	 */
 	async *createMessage(
-		model: SenseAudioModelItem,
+		model: ProviderModelItem,
 		systemPrompt: string,
 		messages: { role: string; content: string }[],
 		baseUrl: string,

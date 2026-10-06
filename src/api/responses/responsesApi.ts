@@ -8,7 +8,7 @@ import {
     Progress,
 } from "vscode";
 
-import type { SenseAudioModelItem } from "../../core/types";
+import type { ProviderModelItem } from "../../core/types";
 import {
     isImageMimeType,
     createDataUrl,
@@ -44,7 +44,7 @@ import type { VisionToolHistoryEntry } from "../../vision/historyCodec";
 /**
  * OpenAI Responses API implementation (POST /v1/responses).
  *
- * SenseAudio supports the Responses protocol for models whose /v1/models
+ * The platform supports the Responses protocol for models whose /v1/models
  * entry reports supports_responses=true (all 9 current llm models do, verified
  * 2026-09-29). This class converts VS Code chat messages to the
  * Responses input format, builds the request body, and parses the SSE stream.
@@ -238,7 +238,7 @@ export class ResponsesApi extends CommonApi<ResponsesInputItem, Record<string, u
      */
     prepareRequestBody(
         rb: Record<string, unknown>,
-        um: SenseAudioModelItem | undefined,
+        um: ProviderModelItem | undefined,
         options?: ProvideLanguageModelChatResponseOptions
     ): Record<string, unknown> {
         // System prompt → instructions
@@ -552,7 +552,7 @@ export class ResponsesApi extends CommonApi<ResponsesInputItem, Record<string, u
      * Non-streaming message creation (used for Git commit generation).
      */
     async *createMessage(
-        model: SenseAudioModelItem,
+        model: ProviderModelItem,
         systemPrompt: string,
         messages: { role: string; content: string }[],
         baseUrl: string,

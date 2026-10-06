@@ -465,7 +465,7 @@ test/                                     # 测试脚本（运行前需 npm run 
 | `commands/modelPresetCommand.ts` | 模型温度预设选择命令 |
 | `core/logger.ts` | 日志输出 (LogOutputChannel) |
 | `core/localize.ts` | 中英文国际化（★ 移植时替换文案） |
-| `core/types.ts` | `SenseAudioModelItem` 等类型定义 |
+| `core/types.ts` | `ProviderModelItem` 等类型定义 |
 | `core/utils.ts` | 工具函数（重试、角色映射、工具转换等） |
 | `core/versionManager.ts` | 扩展版本信息 |
 | `ui/statusBar.ts` | 状态栏创建、更新、套餐用量渲染、后台轮询 |
@@ -648,7 +648,7 @@ test/                                     # 测试脚本（运行前需 npm run 
 
 - `logger.ts`：`Logger` 类（`init` / `debug` / `info` / `warn` / `error` / `sanitizeHeaders` / `dispose`）+ `logger` 单例
 - `localize.ts` ★：`l10n(key)` / `l10nFormat(template, ...args)`
-- `types.ts`：`SenseAudioModelItem` / `ModelPreset` / `RetryConfig` 等
+- `types.ts`：`ProviderModelItem` / `ModelPreset` / `RetryConfig` 等
 - `utils.ts`：`mapRole` / `convertToolsToOpenAI` / `createRetryConfig` / `executeWithRetry` / `isRetryableError` / `isImageMimeType` / `createDataUrl` / `arrayBufferToBase64` / `isToolResultPart` / `tryParseJSONObject` / `storeDataUriImages` / `replaceDataUriImages`
 - `versionManager.ts`：`VersionManager`（`getVersion` / `getUserAgent` / `getClientInfo`）
 
@@ -851,7 +851,7 @@ type 取值：`feat` | `fix` | `refactor` | `docs` | `chore` | `improve` 等。
 | 类别 | 约定 | 示例 |
 |------|------|------|
 | 类 | PascalCase | `ChatModelProvider` |
-| 接口 | PascalCase | `BuiltInModelDef`, `SenseAudioModelItem` |
+| 接口 | PascalCase | `BuiltInModelDef`, `ProviderModelItem` |
 | 类型 | PascalCase | `OpenAIChatRole`, `ParsedModelId` |
 | 函数 | camelCase | `getBuiltInModelConfig`, `countMessageTokens` |
 | 变量 | camelCase | `requestTimeoutMs`, `apiKey` |

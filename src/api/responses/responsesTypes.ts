@@ -1,7 +1,7 @@
 /**
  * OpenAI Responses API types (POST /v1/responses).
  *
- * SenseAudio's Responses endpoint supports a subset of the standard
+ * The platform's Responses endpoint supports a subset of the standard
  * OpenAI Responses API:
  * - Content block types: input_text / output_text / input_image
  * - Top-level input items: message items + function_call / function_call_output

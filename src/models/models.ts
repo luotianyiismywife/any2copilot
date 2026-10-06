@@ -1,10 +1,10 @@
 import * as vscode from "vscode";
 import type { LanguageModelChatInformation } from "vscode";
-import type { SenseAudioModelItem } from "../core/types";
+import type { ProviderModelItem } from "../core/types";
 import { l10n } from "../core/localize";
 
 /**
- * Built-in model definition for SenseAudio.
+ * Built-in model definition (see BUILT_IN_MODELS below).
  */
 interface BuiltInModelDef {
     /** Base model ID sent to the API (e.g., "glm-5.3-flash") */
@@ -246,15 +246,15 @@ export function getBuiltInModelInfos(): LanguageModelChatInformation[] {
  * Thinking state (enable_thinking) is initially set to true and will be adjusted
  * by provider.ts based on the user's reasoning effort selection.
  */
-export function getBuiltInModelConfig(modelId: string): SenseAudioModelItem | undefined {
+export function getBuiltInModelConfig(modelId: string): ProviderModelItem | undefined {
     const def = BUILT_IN_MODELS.find((m) => m.baseId === modelId);
     if (!def) {
         return undefined;
     }
 
-    const model: SenseAudioModelItem = {
+    const model: ProviderModelItem = {
         id: def.baseId,
-        owned_by: "senseaudio",
+        owned_by: "provider",
         displayName: def.displayName,
         vision: def.vision,
         supportsTemperature: def.supportsTemperature ?? true,

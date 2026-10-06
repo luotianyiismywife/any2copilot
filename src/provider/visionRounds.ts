@@ -6,7 +6,7 @@ import type {
     Progress,
     ProvideLanguageModelChatResponseOptions,
 } from "vscode";
-import type { SenseAudioModelItem } from "../core/types";
+import type { ProviderModelItem } from "../core/types";
 import { convertToolsToOpenAI, createRetryConfig, executeWithRetry } from "../core/utils";
 import { l10nFormat } from "../core/localize";
 import { logger } from "../core/logger";
@@ -39,7 +39,7 @@ export interface VisionRoundParams {
     api: CommonApi<unknown, unknown>;
     apiMode: string;
     model: LanguageModelChatInformation;
-    um: SenseAudioModelItem | undefined;
+    um: ProviderModelItem | undefined;
     modelApiKey: string;
     baseUrl: string;
     dispatchFetch: typeof fetch;
@@ -450,7 +450,7 @@ async function runResponsesRound(
     if (responsesToolList.length > 0) {
         body.tools = responsesToolList;
     }
-    // Only auto/none accepted by SenseAudio Responses endpoint
+    // Only auto/none accepted by the platform's Responses endpoint
     body.tool_choice = "auto";
 
     const url = `${params.baseUrl.replace(/\/+$/, "")}/responses`;
@@ -532,7 +532,7 @@ async function runOpenAIRound(
         body.reasoning_effort = params.um.reasoning_effort;
     }
     if (params.um?.enable_thinking === true) {
-        // SenseAudio OpenAI endpoint accepts only string thinking types
+        // The platform's OpenAI endpoint accepts only string thinking types
         body.thinking = (params.um?.reasoning_effort === 'adaptive')
             ? { type: "auto" }
             : { type: "enabled" };

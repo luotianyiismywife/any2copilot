@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { SenseAudioChatModelProvider } from "./provider/provider";
+import { ChatModelProvider } from "./provider/provider";
 import { initStatusBar } from "./ui/statusBar";
 import { logger } from "./core/logger";
 import { VersionManager } from "./core/versionManager";
@@ -33,15 +33,15 @@ export function activate(context: vscode.ExtensionContext) {
     const getLoginToken = (): string | undefined => context.globalState.get<string>("senseaudio.loginToken");
 
     const tokenCountStatusBarItem: vscode.StatusBarItem = initStatusBar(context, getLoginToken);
-    const provider = new SenseAudioChatModelProvider(context.secrets, tokenCountStatusBarItem);
+    const provider = new ChatModelProvider(context.secrets, tokenCountStatusBarItem);
 
-    // Register the SenseAudio provider under the vendor id used in package.json
+    // Register the provider under the vendor id used in package.json
     vscode.lm.registerLanguageModelChatProvider("senseaudio", provider);
 
     // Register all commands and configuration listeners
     registerCommands(context, provider);
 
-    // Startup model sync — checks for new SenseAudio models at most once per
+    // Startup model sync — checks for new models at most once per
     // day and logs a single line to the extension's Output channel.
     // Fire-and-forget: never blocks activation, all errors are handled internally.
     syncModelsOnStartup(context);

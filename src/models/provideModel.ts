@@ -7,7 +7,7 @@ import { getApiModelIds, getApiModelMetadataList, getResponsesSupportedModelIds,
 import { ensureModelsDevLoaded, lookupModelDevEntry, type ModelsDevEntry } from "./modelsDev";
 import { resolveVisionCapability } from "./visionModels";
 import { getPrimaryApiKey } from "../keys/keyManager";
-import type { SenseAudioModelItem } from "../core/types";
+import type { ProviderModelItem } from "../core/types";
 import { l10n } from "../core/localize";
 
 const EXTENSION_LABEL = "Copilot Provider Scaffold";
@@ -15,8 +15,8 @@ const DEFAULT_CONTEXT_LENGTH = 128000;
 const DEFAULT_MAX_TOKENS = 4096;
 
 // ── Module-level registry for auto-discovered model configs ──
-// Key: model ID (API ID), Value: SenseAudioModelItem
-const _autoDiscoveredConfigs = new Map<string, SenseAudioModelItem>();
+// Key: model ID (API ID), Value: ProviderModelItem
+const _autoDiscoveredConfigs = new Map<string, ProviderModelItem>();
 
 /**
  * Module-level set of model IDs that report supports_responses=true on /v1/models.
@@ -139,7 +139,7 @@ function buildAutoDiscoveredInfo(
 }
 
 /**
- * Build and store an SenseAudioModelItem config for an auto-discovered model.
+ * Build and store a ProviderModelItem config for an auto-discovered model.
  * @param apiMode - Effective API protocol for the model ("openai" | "responses").
  */
 function storeAutoDiscoveredConfig(
@@ -147,7 +147,7 @@ function storeAutoDiscoveredConfig(
     apiMeta: ApiModelMetadata | undefined,
     entry: ModelsDevEntry | undefined,
     apiMode: string = "openai"
-): SenseAudioModelItem {
+): ProviderModelItem {
     // Vision capability: /v1/models flag → models.dev → hardcoded fallback.
     // Shared with the vision-proxy picker so both agree on the same model set.
     const vision = resolveVisionCapability(modelId, apiMeta, entry);
@@ -159,9 +159,9 @@ function storeAutoDiscoveredConfig(
     // a wrong 4096 cap that reasoning models can exhaust before any answer text.
     const knownMaxCompletion = apiMeta?.max_completion_tokens ?? entry?.limit?.output;
 
-    const config: SenseAudioModelItem = {
+    const config: ProviderModelItem = {
         id: modelId,
-        owned_by: "senseaudio",
+        owned_by: "provider",
         displayName: apiMeta?.display_name ?? entry?.name ?? modelId,
         vision: vision,
         supportsTemperature: entry?.temperature ?? true,
@@ -182,7 +182,7 @@ function storeAutoDiscoveredConfig(
  * Get model configuration for a previously auto-discovered model.
  * Returns undefined if the model ID was not auto-discovered.
  */
-export function getAutoDiscoveredModelConfig(modelId: string): SenseAudioModelItem | undefined {
+export function getAutoDiscoveredModelConfig(modelId: string): ProviderModelItem | undefined {
     const config = _autoDiscoveredConfigs.get(modelId);
     if (!config) {
         return undefined;

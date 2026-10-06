@@ -1,7 +1,7 @@
 /**
- * A single model entry for SenseAudio.
+ * A single model entry (normalized model config used across the provider).
  */
-export interface SenseAudioModelItem {
+export interface ProviderModelItem {
     id: string;
     object?: string;
     created?: number;

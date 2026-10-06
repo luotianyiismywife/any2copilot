@@ -1,7 +1,7 @@
 /**
  * API model list fetcher.
  *
- * Fetches the list of available model IDs from the SenseAudio API
+ * Fetches the list of available model IDs from the platform API
  * (/v1/models) and caches it with a 5-minute TTL.
  * Falls back to stale cache or an empty list on failure (silent degradation).
  */
@@ -29,7 +29,7 @@ export interface ApiModelMetadata {
 }
 
 /**
- * Raw model entry returned by SenseAudio /v1/models.
+ * Raw model entry returned by the platform /v1/models.
  *
  * The endpoint returns ALL modality models (llm / stt / tts / voice_clone /
  * image / video / music / sfx / agent …). Only `mode === "llm"` entries are
@@ -39,7 +39,7 @@ export interface ApiModelMetadata {
  * ["chat_completions", "responses", "messages"] — used to derive the
  * supports_responses / supports_anthropic capability flags.
  */
-interface SenseAudioModelEntry extends Partial<ApiModelMetadata> {
+interface ApiModelEntry extends Partial<ApiModelMetadata> {
     id: string;
     display_name?: string;
     mode?: string;
@@ -77,12 +77,12 @@ async function fetchApiModelList(apiKey: string): Promise<ApiModelMetadata[]> {
         throw new Error(`API model list error: [${response.status}] ${response.statusText}`);
     }
 
-    const body = (await response.json()) as { data?: SenseAudioModelEntry[] };
+    const body = (await response.json()) as { data?: ApiModelEntry[] };
     return (body.data ?? [])
         // Filter out non-text-generation models (stt / tts / voice_clone / …).
         .filter((m) => m.mode === "llm")
         .map((m) => {
-            // SenseAudio /v1/models 不返回 supports_* 能力标记，
+            // The platform /v1/models does not return supports_* capability flags,
             // 从 protocols 数组（chat_completions / responses / messages）推导协议能力。
             const protocols = m.protocols ?? [];
             return {
@@ -101,7 +101,7 @@ async function fetchApiModelList(apiKey: string): Promise<ApiModelMetadata[]> {
 }
 
 /**
- * Get the list of model IDs available via the SenseAudio API.
+ * Get the list of model IDs available via the platform API.
  *
  * @param apiKey - The API key for authentication.
  * @returns A set of model ID strings available on the API server.
@@ -119,7 +119,7 @@ export async function getApiModelIds(apiKey: string | undefined): Promise<Set<st
  *
  * Used by model discovery as the PRIMARY spec source for auto-discovered
  * models — the platform's own metadata is more accurate and fresher than
- * models.dev, whose catalog may lag or lack SenseAudio-specific entries
+ * models.dev, whose catalog may lag or lack platform-specific entries
  * (fetch failures previously degraded specs to 128K context / 4096 output).
  */
 export async function getApiModelMetadataList(apiKey: string | undefined): Promise<ApiModelMetadata[]> {
