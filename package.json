@@ -270,9 +270,9 @@
 				},
 				"any2copilot.maxInputTokensRatio": {
 					"type": "number",
-					"default": 1.0,
+					"default": 1,
 					"minimum": 0.1,
-					"maximum": 1.0,
+					"maximum": 1,
 					"description": "%config.maxInputTokensRatio.desc%"
 				},
 				"any2copilot.modelPresets": {
@@ -345,7 +345,12 @@
 				"any2copilot.apiMode": {
 					"type": "string",
 					"default": "auto",
-					"enum": ["auto", "openai", "anthropic", "responses"],
+					"enum": [
+						"auto",
+						"openai",
+						"anthropic",
+						"responses"
+					],
 					"enumDescriptions": [
 						"%config.apiMode.enum.auto.desc%",
 						"%config.apiMode.enum.openai.desc%",
@@ -366,7 +371,11 @@
 				},
 				"any2copilot.apiKeyMode": {
 					"type": "string",
-					"enum": ["sticky", "rotation", "single"],
+					"enum": [
+						"sticky",
+						"rotation",
+						"single"
+					],
 					"default": "sticky",
 					"enumDescriptions": [
 						"%config.apiKeyMode.enum.sticky.desc%",
@@ -377,7 +386,10 @@
 				},
 				"any2copilot.singleKeyFallback": {
 					"type": "string",
-					"enum": ["error", "switch"],
+					"enum": [
+						"error",
+						"switch"
+					],
 					"default": "switch",
 					"enumDescriptions": [
 						"%config.singleKeyFallback.enum.error.desc%",
@@ -390,7 +402,12 @@
 					"items": {
 						"type": "number"
 					},
-					"default": [401, 402, 429, 503],
+					"default": [
+						401,
+						402,
+						429,
+						503
+					],
 					"description": "%config.apiKeyRotationStatusCodes.desc%"
 				},
 				"any2copilot.apiKeyRotationErrorPatterns": {
@@ -398,7 +415,14 @@
 					"items": {
 						"type": "string"
 					},
-					"default": ["余额不足", "insufficient balance", "INSUFFICIENT_BALANCE", "balance", "RATE_LIMITED", "UPSTREAM_RATE_LIMITED"],
+					"default": [
+						"余额不足",
+						"insufficient balance",
+						"INSUFFICIENT_BALANCE",
+						"balance",
+						"RATE_LIMITED",
+						"UPSTREAM_RATE_LIMITED"
+					],
 					"description": "%config.apiKeyRotationErrorPatterns.desc%"
 				},
 				"any2copilot.transientRetryStatusCodes": {
@@ -406,7 +430,11 @@
 					"items": {
 						"type": "number"
 					},
-					"default": [429, 500, 503],
+					"default": [
+						429,
+						500,
+						503
+					],
 					"description": "%config.transientRetryStatusCodes.desc%"
 				},
 				"any2copilot.apiKeyExhaustedCooldownMin": {
@@ -514,7 +542,7 @@
 		"lint": "eslint",
 		"watch": "tsc -watch -p ./",
 		"test": "npm run compile && npm run test:offline",
-		"test:offline": "node test/test-plan-usage.mjs && node test/test-transient-retry.mjs && node test/test-vision-history.mjs && node test/test-anthropic-tool-result-merge.mjs && node test/test-batch-import.mjs",
+		"test:offline": "node test/test-plan-usage.mjs && node test/test-transient-retry.mjs && node test/test-keys.mjs && node test/test-rotation.mjs && node test/test-vision-history.mjs && node test/test-anthropic-tool-result-merge.mjs && node test/test-batch-import.mjs",
 		"build": "node scripts/build/package-vsix.mjs",
 		"postinstall": "node scripts/build/copy-tokenizer.js"
 	},
@@ -522,11 +550,11 @@
 		"@microsoft/tiktokenizer": "^1.0.10"
 	},
 	"devDependencies": {
-		"@eslint/js": "9.39.4",
-		"@types/node": "^22",
+		"@eslint/js": "^10.0.1",
+		"@types/node": "^26.6.4",
 		"@types/vscode": "1.116.0",
-		"eslint": "9.39.4",
+		"eslint": "^10.12.0",
 		"typescript": "^5.9.2",
-		"typescript-eslint": "8.60.1"
+		"typescript-eslint": "^8.71.1"
 	}
 }

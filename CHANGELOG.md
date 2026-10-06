@@ -8,6 +8,17 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **离线测试**：`test-keys.mjs`（Key 选择与状态，18 项断言）、`test-rotation.mjs`（轮换循环，7 项断言）。
+
+### 变更
+
+- `@types/vscode` 精确 pin 到 `1.116.0`（与 `engines.vscode` 最低版本一致）。
+- 升级 `@types/node` 22 → 26、`eslint` 9 → 10、`@eslint/js` 9 → 10、`typescript-eslint` 8.60 → 8.71。
+- 修复 eslint 10 新规则报出的 5 处问题（`no-useless-assignment` × 2、`preserve-caught-error` × 3）。
+- 修复 2 个高危依赖漏洞（`brace-expansion` / `js-yaml`）。
+
 ## [1.0.0] - 2026-10-07
 
 ### 新增

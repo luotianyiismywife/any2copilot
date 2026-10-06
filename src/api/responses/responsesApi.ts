@@ -123,7 +123,7 @@ export class ResponsesApi extends CommonApi<ResponsesInputItem, Record<string, u
                         imageIndex++;
                     }
                 } else if (part instanceof vscode.LanguageModelToolCallPart) {
-                    let args = "{}";
+                    let args: string;
                     try {
                         args = JSON.stringify(part.input ?? {});
                     } catch {

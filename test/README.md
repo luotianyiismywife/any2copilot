@@ -13,6 +13,8 @@
 | `api-tests.mjs` | 联网 | 三协议完整测试（OpenAI / Anthropic / Responses），需真实 API Key |
 | `test-plan-usage.mjs` | 离线 | **套餐用量快照**（29 项断言）：窗口归一化、百分比、超额判定、三态计费模式、倒计时、摘要格式化、真实 API 夹具回归 |
 | `test-transient-retry.mjs` | 离线 | **瞬态错误分类**（18 项断言）：500 命中重试但不命中轮换（平台问题不换 key）、429/503 两者都命中、400/403 都不命中、401/402 仅轮换 |
+| `test-keys.mjs` | 离线 | **Key 选择与状态**（18 项断言）：rotation 游标前移 / sticky 钉住 / single active、跳过不可用与冷却 key、single fallback 判定、store 增删改（cookie 更新 / 冲突校验）、旧版单 key 迁移 |
+| `test-rotation.mjs` | 离线 | **轮换循环**（7 项断言）：成功路径、402 换 key（持久化）、429 换 key（仅冷却）、500 不换 key（同 key 重试）、全部失败报错（脱敏）、取消立即抛出、single 余额不足降级 rotation |
 | `test-vision-history.mjs` | 离线 | 跨轮视觉历史编解码 + 双 API 转换器闭环（含空 reasoning_content 回归） |
 | `test-anthropic-tool-result-merge.mjs` | 离线 | Anthropic 连续工具结果合并（3 个并行 tool_use 结果合并为单条 user 消息） |
 | `test-batch-import.mjs` | 离线 | **批量导入解析器**（14 项断言）：`key---cookie---备注;` 格式、空字段、备注含分隔符、容错 |
@@ -23,8 +25,8 @@
 | `test-responses-recheck.mjs` | 联网 | Responses 协议复检（工具格式扁平化 / function_call 块 / tool_choice 行为） |
 | `test-vision-check.mjs` | 联网 | 视觉能力检查（生成合法 PNG 测图片输入） |
 
-> **离线测试**（`test-plan-usage` / `test-transient-retry` / `test-vision-history` /
-> `test-anthropic-tool-result-merge` / `test-batch-import`）与平台无关，移植后应保持全绿。
+> **离线测试**（`test-plan-usage` / `test-transient-retry` / `test-keys` / `test-rotation` /
+> `test-vision-history` / `test-anthropic-tool-result-merge` / `test-batch-import`）与平台无关，移植后应保持全绿。
 > **联网测试**含平台专属假设（模型 ID、端点、错误语义），移植时需按新平台调整。
 
 ## 运行
@@ -37,6 +39,8 @@ npm run test:offline
 # 或逐个运行
 node test/test-plan-usage.mjs
 node test/test-transient-retry.mjs
+node test/test-keys.mjs
+node test/test-rotation.mjs
 node test/test-vision-history.mjs
 node test/test-anthropic-tool-result-merge.mjs
 node test/test-batch-import.mjs

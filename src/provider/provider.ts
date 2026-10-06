@@ -349,9 +349,9 @@ export class ChatModelProvider implements LanguageModelChatProvider {
                     reason: isForceTerminated ? "connection_terminated" : "timeout",
                 });
                 if (isForceTerminated) {
-                    throw new Error(l10n("The connection was closed by the server. The generation took too long. Please try again or request shorter content."));
+                    throw new Error(l10n("The connection was closed by the server. The generation took too long. Please try again or request shorter content."), { cause: err });
                 }
-                throw new Error(l10n("Request timed out. The generation took too long. You can increase the timeout in settings (any2copilot.requestTimeout)."));
+                throw new Error(l10n("Request timed out. The generation took too long. You can increase the timeout in settings (any2copilot.requestTimeout)."), { cause: err });
             }
 
             // Detect image content moderation rejection from the API
@@ -361,7 +361,7 @@ export class ChatModelProvider implements LanguageModelChatProvider {
                     error: "image_sensitive",
                     errorMessage: errMessage,
                 });
-                throw new Error(l10n("The image you sent was flagged as sensitive by the content moderation system. Please try a different image."));
+                throw new Error(l10n("The image you sent was flagged as sensitive by the content moderation system. Please try a different image."), { cause: err });
             }
 
             console.error("[Copilot Provider] Chat request failed", {

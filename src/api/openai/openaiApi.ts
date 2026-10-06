@@ -95,7 +95,7 @@ export class OpenaiApi extends CommonApi<OpenAIChatMessage, Record<string, unkno
                     }
                 } else if (part instanceof vscode.LanguageModelToolCallPart) {
                     const id = part.callId || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-                    let args = "{}";
+                    let args: string;
                     try {
                         args = JSON.stringify(part.input ?? {});
                     } catch {
