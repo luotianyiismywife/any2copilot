@@ -46,7 +46,7 @@
 | **流式推理** | 支持 SSE (Server-Sent Events) 流式响应，实时输出文本和工具调用 |
 | **Thinking/推理** | 支持模型的推理过程展示 ("thinking" 状态)，包括 XML think 块解析 |
 | **工具调用 (Tool Calling)** | 支持 VS Code 的 LanguageModelToolCallPart 机制 |
-| **图片代理 (Tool-based)** | 为不支持视觉的模型注入 `ask_image` 工具，模型可自主选择调用视觉模型回答关于图片的具体问题，支持多轮 API 请求完成"调用工具→提问→获取答案→继续回答"的完整流程。视觉模型 ID、查询提示词和思考模式均可通过设置配置。**跨轮视觉历史持久化**：每轮视觉代理完成后输出私有 MIME（`application/vnd.opencodego.vision-tool-history+json`）的 `LanguageModelDataPart`，VS Code 自动带入下一轮对话；下次请求 `convertMessages` 识别该 DataPart 并重建标准 tool call + tool result 消息 |
+| **图片代理 (Tool-based)** | 为不支持视觉的模型注入 `ask_image` 工具，模型可自主选择调用视觉模型回答关于图片的具体问题，支持多轮 API 请求完成"调用工具→提问→获取答案→继续回答"的完整流程。视觉模型 ID、查询提示词和思考模式均可通过设置配置。**跨轮视觉历史持久化**：每轮视觉代理完成后输出私有 MIME（`application/vnd.copilot-provider.vision-tool-history+json`）的 `LanguageModelDataPart`，VS Code 自动带入下一轮对话；下次请求 `convertMessages` 识别该 DataPart 并重建标准 tool call + tool result 消息 |
 | **上下文窗口声明** | `maxInputTokens` 按真实上下文窗口的**可配置比例**声明（默认 `1.0`，可通过 `<prefix>.maxInputTokensRatio` 调整，范围 0.1–1.0，**建议 0.8**）。VS Code agent 模式的自动压缩在比例 0.8 时于真实上下文的约 **72%** 处触发。`context_length` / `max_completion_tokens` 保持真实值不变（用于 API 请求体） |
 | **Token 计数** | 使用 `o200k_base` tiktoken 分词器精确统计 token 用量 |
 | **原生 Token 指示器** | 始终启用，向 Copilot Chat 原生 Token 指示器报告 token 用量。通过发送 MIME 类型为 `usage` 的 `LanguageModelDataPart` 实现。依赖 VS Code/Copilot Chat 1.116+ |

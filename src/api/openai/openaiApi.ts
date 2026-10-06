@@ -447,7 +447,7 @@ export class OpenaiApi extends CommonApi<OpenAIChatMessage, Record<string, unkno
                 }
             }
         } catch (e) {
-            console.error("[SenseAudio] Failed to process thinking/reasoning_details:", e);
+            console.error("[Copilot Provider] Failed to process thinking/reasoning_details:", e);
         }
 
         if (deltaObj?.content) {

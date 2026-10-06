@@ -157,7 +157,7 @@ export class SenseAudioChatModelProvider implements LanguageModelChatProvider {
                     }
                     progress.report(part);
                 } catch (e) {
-                    console.error("[SenseAudio] Progress.report failed", {
+                    console.error("[Copilot Provider] Progress.report failed", {
                         modelId: model.id,
                         error: e instanceof Error ? { name: e.name, message: e.message } : String(e),
                     });
@@ -364,7 +364,7 @@ export class SenseAudioChatModelProvider implements LanguageModelChatProvider {
                 throw new Error(l10n("The image you sent was flagged as sensitive by the content moderation system. Please try a different image."));
             }
 
-            console.error("[SenseAudio] Chat request failed", {
+            console.error("[Copilot Provider] Chat request failed", {
                 modelId: model.id,
                 messageCount: messages.length,
                 error: err instanceof Error ? { name: err.name, message: err.message } : String(err),

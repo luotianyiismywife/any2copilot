@@ -1,22 +1,20 @@
 /**
- * Vision capability resolution for SenseAudio models.
+ * Vision capability resolution for platform models.
  *
- * The platform's `/v1/models` endpoint does NOT return any capability flag —
- * verified 2026-09-29: the field set is exactly
- * `id / display_name / mode / protocols / desc / created / owned_by`.
- * In particular there is no `supports_vision`, so the previous implementation
- * (`supports_vision: m.supports_vision`) always produced `undefined` and the
- * vision-proxy picker was permanently empty.
+ * Some platforms' `/v1/models` endpoint does NOT return any capability flag
+ * (e.g. only `id / display_name / mode / protocols / desc / created / owned_by`).
+ * In that case there is no `supports_vision`, so a naive
+ * `supports_vision: m.supports_vision` always produces `undefined` and the
+ * vision-proxy picker is permanently empty.
  *
  * Resolution order (first hit wins):
- *   1. `/v1/models` `supports_vision` — used if the platform ever starts
- *      returning it (future-proof, no code change needed).
+ *   1. `/v1/models` `supports_vision` — used if the platform returns it.
  *   2. models.dev — `attachment === true` or `modalities.input` contains
- *      "image". Cross-checked against OpenRouter's `architecture.input_modalities`
- *      on 2026-09-29; both sources agree on all 5 models they cover.
- *   3. Hardcoded fallback — for SenseAudio's own models, which are absent from
- *      both catalogs. Defaults to `false` (text-only) so an unknown model goes
- *      through the ask_image proxy instead of failing on a real image request.
+ *      "image".
+ *   3. Hardcoded fallback — for the platform's own models, which may be absent
+ *      from both catalogs. Defaults to `false` (text-only) so an unknown model
+ *      goes through the ask_image proxy instead of failing on a real image
+ *      request.
  */
 import { getApiModelMetadataList, type ApiModelMetadata } from "./apiModelList";
 import { ensureModelsDevLoaded, lookupModelDevEntry, type ModelsDevEntry } from "./modelsDev";
@@ -24,17 +22,16 @@ import { ensureModelsDevLoaded, lookupModelDevEntry, type ModelsDevEntry } from 
 /**
  * Hardcoded vision capability for models absent from models.dev / OpenRouter.
  *
- * SenseAudio's own models (senseaudio-s2*, sensenova-*) are not listed in either
- * catalog, and the official docs table has no vision column. Their `/v1/models`
- * `desc` makes no mention of image input, so they are treated as text-only.
- * Marking a text-only model as vision-capable would make real image requests
- * fail; the reverse only costs one extra ask_image round-trip.
+ * ⚠️ **移植对接点**：填入你平台自研模型的视觉能力（这些模型通常不在
+ * models.dev / OpenRouter 目录里）。留空对象即可——未知模型默认按 `false`
+ * （纯文本）处理，走 ask_image 代理，不会因真实图片请求失败。
+ *
+ * 示例（SenseAudio）：
+ *   "senseaudio-s2": false,
+ *   "senseaudio-s2-flash": false,
  */
 const HARDCODED_VISION: Record<string, boolean> = {
-    "senseaudio-s2": false,
-    "senseaudio-s2-flash": false,
-    "senseaudio-s2-lite": false,
-    "sensenova-6.8-flash-lite": false,
+    // 移植时填入你平台的模型 ID → 是否支持视觉
 };
 
 /**

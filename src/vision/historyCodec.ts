@@ -6,8 +6,10 @@ import { ASK_IMAGE_TOOL_NAME, ASK_WITH_MULTI_IMAGE_TOOL_NAME } from "./types";
  * Private MIME type used to persist intercepted vision tool calls in the
  * provider response. VS Code can carry this DataPart into the next request,
  * while the upstream API receives ordinary tool-call/tool-result messages.
+ *
+ * ⚠️ 该 MIME 会随对话历史持久化——移植后若改动此值，旧对话的视觉历史将无法恢复。
  */
-export const VISION_TOOL_HISTORY_MIME = "application/vnd.opencodego.vision-tool-history+json";
+export const VISION_TOOL_HISTORY_MIME = "application/vnd.copilot-provider.vision-tool-history+json";
 
 export interface VisionToolHistoryArguments {
     imageIndex?: number;

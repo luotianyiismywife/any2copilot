@@ -252,7 +252,7 @@ export abstract class CommonApi<TMessage, TRequestBody> {
             const parsed = tryParseJSONObject(argsText);
             if (!parsed.ok) {
                 if (throwOnInvalid) {
-                    console.error("[SenseAudio] Invalid JSON for tool call", {
+                    console.error("[Copilot Provider] Invalid JSON for tool call", {
                         idx,
                         snippet: (buf.args || "").slice(0, 200),
                     });
@@ -332,7 +332,7 @@ export abstract class CommonApi<TMessage, TRequestBody> {
             this.flushThinkingBuffer(progress);
             progress.report(new LanguageModelThinkingPart("", this._currentThinkingId) as unknown as LanguageModelResponsePart);
         } catch (e) {
-            console.error("[SenseAudio] Failed to end thinking sequence:", e);
+            console.error("[Copilot Provider] Failed to end thinking sequence:", e);
         }
         this._currentThinkingId = null;
         this._thinkingBuffer = "";

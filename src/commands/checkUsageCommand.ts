@@ -10,6 +10,7 @@
 import * as vscode from "vscode";
 import { l10n, l10nFormat } from "../core/localize";
 import { logger } from "../core/logger";
+import { LOGIN_TOKEN_SOURCE_HINT } from "../platform/platformConfig";
 import {
     formatUsageSummary,
     getPlanUsageFetchStatus,
@@ -44,7 +45,7 @@ export async function checkUsageCommand(context: vscode.ExtensionContext): Promi
         logger.warn("planUsage.checkUsage.failed", { status, hasStale: snapshot !== null });
         if (status === "unauthorized") {
             vscode.window.showErrorMessage(
-                l10n("Login token expired. Copy a fresh token from the browser (see LOGIN_TOKEN_SOURCE_HINT)."),
+                l10nFormat("Login token expired. Copy a fresh token from the browser ({0}).", LOGIN_TOKEN_SOURCE_HINT),
             );
         } else {
             vscode.window.showErrorMessage(l10n("Failed to fetch plan usage. See the extension output channel for details."));

@@ -50,7 +50,7 @@ export async function queryBalanceFlow(ctx: KeyManagerContext): Promise<void> {
     if (!token) {
         const input = await vscode.window.showInputBox({
             title: l10n("Query Balance / Plan Usage"),
-            prompt: l10n("Enter the login PASETO token (see LOGIN_TOKEN_SOURCE_HINT, valid 60 days)"),
+            prompt: l10nFormat("Enter the login token ({0})", LOGIN_TOKEN_SOURCE_HINT),
             ignoreFocusOut: true,
             password: true,
         });
@@ -101,7 +101,7 @@ export async function addKeyFlow(ctx: KeyManagerContext): Promise<boolean> {
     // Unified triple order: key → cookie → label (matches batch import & edit).
     const cookie = await vscode.window.showInputBox({
         title: l10n("Add API Key"),
-        prompt: l10n("Enter the tr_session cookie for this key (optional)"),
+        prompt: l10n("Enter the cookie for this key (optional)"),
         ignoreFocusOut: true,
         password: true,
     });
@@ -417,7 +417,7 @@ export async function bindCookieFlow(ctx: KeyManagerContext, index: number): Pro
     }
     const cookie = await vscode.window.showInputBox({
         title: l10n("Bind/Update Cookie"),
-        prompt: l10n("Enter the tr_session cookie value for this key"),
+        prompt: l10n("Enter the cookie value for this key"),
         ignoreFocusOut: true,
         password: true,
         value: entry.cookie ?? "",
@@ -454,7 +454,7 @@ export async function editKeyFlow(ctx: KeyManagerContext, index: number): Promis
     // 2. Cookie
     const newCookie = await vscode.window.showInputBox({
         title: l10n("Edit API Key"),
-        prompt: l10n("Edit the tr_session cookie (empty to clear)"),
+        prompt: l10n("Edit the cookie (empty to clear)"),
         ignoreFocusOut: true,
         password: true,
         value: entry.cookie ?? "",

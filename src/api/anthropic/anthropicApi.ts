@@ -271,7 +271,7 @@ export class AnthropicApi extends CommonApi<AnthropicMessage, AnthropicRequestBo
 		}
 
 		// Add thinking mode (Anthropic-compatible format).
-		// Verified against the SenseAudio endpoint (2026-08-06, deepseek-v4-flash):
+		// Verified against a real Anthropic-compatible endpoint (2026-08-06):
 		//   - thinking: { type: "enabled" }  + temperature/top_p → 400 "请求参数组合无效"
 		//   - thinking: { type: "adaptive" } + temperature/top_p → 200 OK
 		//   - thinking: { type: "disabled" } + temperature      → 200 OK

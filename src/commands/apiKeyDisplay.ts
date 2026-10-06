@@ -52,8 +52,8 @@ export function formatBalanceDetailText(info: AccountInfo | undefined, minBalanc
 /**
  * 查询账号余额（TTL 缓存）。
  *
- * 数据源：登录 PASETO token 查 `platform.senseaudio.cn/api/user/self`
- * （`getAccountInfoCached`）。余额按**账号**粒度，所有 key 共享同一份。
+ * 数据源：登录 token 查账号信息端点（`getAccountInfoCached`）。
+ * 余额按**账号**粒度，所有 key 共享同一份。
  * 无登录 token 或查询失败 → undefined（UI 显示 "余额未知"）。
  */
 export async function fetchAccountInfo(
@@ -119,7 +119,7 @@ export async function buildKeyQuickPickItems(
     action: string,
 ): Promise<(vscode.QuickPickItem & { action?: string; index?: number; entry?: ApiKeyEntry })[]> {
     // Balance display: account-level (all keys share one account).
-    // Source: login token → platform.senseaudio.cn/api/user/self.
+    // Source: login token → account info endpoint.
     const accountInfo = await fetchAccountInfo(getLoginToken);
     const balanceText = accountInfo
         ? formatBalanceDetailText(accountInfo, getMinBalanceCny())

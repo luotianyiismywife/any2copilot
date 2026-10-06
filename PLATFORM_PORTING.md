@@ -16,7 +16,7 @@
 | 常量 | 用途 | 改什么 |
 |------|------|--------|
 | `API_BASE_URL` | OpenAI 兼容 API 根地址（聊天/模型列表/余额检测共用） | 换成新平台 `/v1` 地址 |
-| `PLATFORM_HOME_URL` / `PLATFORM_API_KEY_URL` | 官网 / 获取密钥跳转 | 换新平台地址 |
+| `PLATFORM_API_KEY_URL` | 获取密钥页面（"获取密钥"命令跳转目标） | 换新平台地址 |
 | `PLATFORM_USER_SELF_URL` | 用户中心账号信息端点（套餐用量/余额） | 换新平台端点；无此能力可删（见 §3） |
 | `PLATFORM_HEADERS` | 用户中心接口必需固定头 | 按新平台域校验调整；无校验则置 `{}` |
 | `FALLBACK_TEST_MODEL_ID` | 模型列表不可用时的兜底测试模型 | 换新平台的模型 ID |
@@ -39,6 +39,19 @@
 
 脚手架文案已中性化（"Copilot Provider Scaffold"）。移植时把平台名/文案换成你平台的
 （zhCN 表 + 两个 nls 文件 + `resources/walkthrough/*.md`）。
+
+### 1.4 示例模型 ID（保留为可运行示例，移植时替换）
+
+脚手架保留 SenseAudio 作为**可运行的示例平台**，以下位置含示例模型 ID，移植时替换：
+
+| 位置 | 内容 |
+|------|------|
+| `src/models/models.ts` → `BUILT_IN_MODELS` | 内置模型清单（示例数据） |
+| `src/models/visionModels.ts` → `HARDCODED_VISION` | 平台自研模型的视觉能力兜底（示例为空对象） |
+| `package.json` → `senseaudio.commitModel` 默认值 | 提交消息生成默认模型 |
+| `package.json` → `senseaudio.visionProxyModel` 默认值 | 视觉代理默认模型 |
+| `src/commands/visionProxyCommand.ts` / `src/provider/visionRounds.ts` | 视觉代理默认模型（代码内兜底） |
+| `src/platform/platformConfig.ts` → `FALLBACK_TEST_MODEL_ID` | key 可用性检测兜底模型 |
 
 ## 2. 平台行为差异排查清单
 

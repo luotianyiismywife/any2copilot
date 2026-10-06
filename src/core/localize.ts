@@ -108,7 +108,7 @@ const zhCN: Record<string, string> = {
 	"Deleted {0} API key(s)": "已删除 {0} 个 API Key",
 	"Edit API Key": "编辑 API Key",
 	"Edit the API key value (leave unchanged to keep)": "编辑 API Key 值（保持不变则不修改）",
-	"Edit the tr_session cookie (empty to clear)": "编辑 tr_session cookie（留空清除）",
+	"Edit the cookie (empty to clear)": "编辑 cookie（留空清除）",
 	"Edit the label (empty to clear)": "编辑备注（留空清除）",
 	"API key updated": "API Key 已更新",
 	"API key value conflicts with another existing key": "API Key 值与另一个已存在的 key 冲突",
@@ -123,14 +123,14 @@ const zhCN: Record<string, string> = {
 	"Bind/Update Cookie": "绑定/更新 Cookie",
 	"Clear Cookie": "清除 Cookie",
 	"Enter an optional label for this key": "为该 key 输入可选备注（可留空）",
-	"Enter the tr_session cookie for this key (optional)": "输入该 key 的 tr_session cookie（可选，可多个 key 共享同一 cookie）",
+	"Enter the cookie for this key (optional)": "输入该 key 的 cookie（可选，可多个 key 共享同一 cookie）",
 	"API key already exists": "该 API Key 已存在",
 	"API key added": "API Key 已添加",
 	"Select an API key to manage": "选择要管理的 API Key",
 	"Set as current API key": "已设为当前 API Key",
 	"Set as Current is only valid in single mode (apiKeyMode=single)": "「设为当前使用」仅在 single 模式下有效（apiKeyMode=single）",
 	"Reset exhausted key states": "已重置失效状态",
-	"Enter the tr_session cookie value for this key": "输入该 key 对应的 tr_session cookie 值（留空清除）",
+	"Enter the cookie value for this key": "输入该 key 对应的 cookie 值（留空清除）",
 	"Cookie updated": "Cookie 已更新",
 	"Cookie cleared": "Cookie 已清除",
 	"Select Vision Proxy Model": "选择视觉代理模型",
@@ -155,10 +155,10 @@ const zhCN: Record<string, string> = {
 		"当前 API Key 不可用（{0}）。single 模式仅在余额不足（402）时才自动切换 key；请稍后重试，或使用「管理 API Keys」命令检测/切换。",
 	"No API keys configured": "未配置 API Key",
 
-	// apiKeyFlows.ts - 登录 token 查询余额/套餐用量（platform.senseaudio.cn/api/user/self）
+	// apiKeyFlows.ts - 登录 token 查询余额/套餐用量
 	"Query Balance / Plan Usage": "查询余额 / 套餐用量",
-	"Enter the login PASETO token (see LOGIN_TOKEN_SOURCE_HINT, valid 60 days)":
-		"输入登录 PASETO token（F12 → Application → Local Storage → 平台域名 → user → state.token，60 天有效）",
+	"Enter the login token ({0})":
+		"输入登录 token（{0}）",
 	"Querying balance...": "正在查询余额...",
 	"Failed to query balance (token may be expired)": "余额查询失败（token 可能已失效）",
 	"Re-enter token": "重新输入 token",
@@ -185,8 +185,8 @@ const zhCN: Record<string, string> = {
 	"Querying plan usage...": "正在查询套餐用量...",
 	"No login token configured. Set it via the Manage API Keys command first.": "未配置登录 token，请先通过「管理 API Keys」命令设置。",
 	"Manage API Keys": "管理 API Keys",
-	"Login token expired. Copy a fresh token from the browser (see LOGIN_TOKEN_SOURCE_HINT).":
-		"登录 token 已失效，请从浏览器重新复制（F12 → Application → Local Storage → 平台域名 → user → state.token）。",
+	"Login token expired. Copy a fresh token from the browser ({0}).":
+		"登录 token 已失效，请从浏览器重新复制（{0}）。",
 	"Failed to fetch plan usage. See the extension output channel for details.": "套餐用量查询失败，详见扩展的输出通道。",
 	"No plan usage data available for this account.": "该账号暂无套餐用量数据。",
 };

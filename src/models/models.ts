@@ -72,26 +72,20 @@ export function getMaxInputTokensRatio(): number {
 /**
  * Built-in model definitions.
  *
- * Model list verified against the live `/v1/models` endpoint on 2026-09-29
- * (9 llm models) and the official model page:
- * https://docs.senseaudio.cn/guides/account/model-list
+ * ⚠️ **移植对接点**：以下清单是 **SenseAudio 平台的示例数据**，移植时必须
+ * 替换为你平台的模型。它是 `/v1/models` 不可用时的兜底列表（自动模型发现
+ * 默认开启，正常情况下以 API 实时列表为准）。
  *
- * IMPORTANT: `/v1/models` returns NO spec fields — only
- * `id / display_name / mode / protocols / desc / created / owned_by`.
- * It does NOT return `context_length`, `max_completion_tokens` or any
- * `supports_*` capability flag. All specs below therefore come from the
- * official docs table (context / max output) and models.dev + OpenRouter
- * (vision capability, cross-checked and in agreement).
+ * 示例数据来源：对照 SenseAudio 实时 `/v1/models`（2026-09-29，9 个 llm 模型）
+ * 与官方模型页核实。该平台的 `/v1/models` **不返回任何规格字段**（仅
+ * `id / display_name / mode / protocols / desc / created / owned_by`），
+ * 因此规格取自官方文档 + models.dev + OpenRouter。
  *
- * The previous list (kimi-k2.5/k2.6/k2.7-code, glm-5/5.1/5.2/5.3,
- * deepseek-v4-pro/flash, mimo-v2.5-pro, minimax-m2.5/m2.7, qwen3.7-max,
- * qwen3.8-max) is entirely retired by the platform — those IDs now 404.
- *
- * Image-generation models (senseaudio-image-2.0, doubao-seedream-5-0, …) are
- * excluded — they cannot be used for chat.
+ * 移植时按你平台的情况填写每个模型的 `baseId` / `displayName` / `vision` /
+ * `thinkingMode` / `contextLength` / `maxTokens`。
  */
 const BUILT_IN_MODELS: BuiltInModelDef[] = [
-    // ── SenseAudio 自研系列 ──
+    // ── 示例：SenseAudio 自研系列 ──
     // S2: 1M context / 128K output. desc mentions 深度推理与复杂工具调用 (no vision).
     { baseId: "senseaudio-s2", displayName: "SenseAudio-S2", vision: false, thinkingMode: "switchable", contextLength: 1000000, maxTokens: 131072 },
     // S2-Flash / S2-Lite: 256K context / 64K output.

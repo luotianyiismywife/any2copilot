@@ -163,7 +163,7 @@ export async function executeApiRequest(params: ApiRequestParams): Promise<void>
 
             if (!res.ok) {
                 const errorText = await res.text();
-                console.error("[SenseAudio] Responses API error response", errorText);
+                console.error("[Copilot Provider] Responses API error response", errorText);
                 if (errorText.includes("image is sensitive")) {
                     throw new Error(`IMAGE_SENSITIVE: ${errorText}`);
                 }
@@ -215,7 +215,7 @@ export async function executeApiRequest(params: ApiRequestParams): Promise<void>
 
             if (!res.ok) {
                 const errorText = await res.text();
-                console.error("[SenseAudio] API error response", errorText);
+                console.error("[Copilot Provider] API error response", errorText);
                 // Detect content moderation rejection for images — skip retries, this won't recover
                 if (errorText.includes("image is sensitive")) {
                     throw new Error(`IMAGE_SENSITIVE: ${errorText}`);
