@@ -414,7 +414,11 @@ scripts/
     ├── port.mjs                          # 批量移植（中性占位符 → 平台值，npm run port）
     └── audit-all.mjs                     # 完整审计（npm run audit，7 项检查）
 
+.github/
+└── workflows/ci.yml                      # CI（compile + lint + audit + test + 打包）
 .vscode/                                  # 调试配置（F5 启动扩展宿主）
+.editorconfig                             # 跨编辑器缩进 / 换行 / 编码风格
+CHANGELOG.md                              # 更新日志（Keep a Changelog 格式）
 docs/
 ├── multi-api-key-design.md               # 多 Key 轮换与失效切换设计
 ├── neutralization.md                     # 中性化占位符与批量移植（port.mjs）
@@ -718,6 +722,8 @@ npm run build
 > `npm run compile` 先运行 `scripts/build/clean.mjs` **清空 `out/`**（`tsc` 不清理 `outDir`，源文件删除/移动后旧 `.js` 会残留并被 `vsce package` 打进 VSIX），再 `tsc` 编译，最后自动运行 `build-info.mjs`（生成编译元信息）与 `check-settings.mjs`（设置项一致性核对，有漂移则编译失败）。
 
 > **调试**：`.vscode/launch.json` 提供 `Run Extension`（F5，`preLaunchTask: npm: compile`）与 `Run Extension (no compile)` 两个配置。
+
+> **CI**：`.github/workflows/ci.yml` 在 push / PR 时依次运行 `npm ci` → `compile` → `lint` → `audit` → `test:offline` → `build`，并上传 VSIX 产物。
 
 ### 6.2 编译配置 (tsconfig.json)
 

@@ -1,6 +1,7 @@
 .vscode/**
 src/**
 .gitignore
+.editorconfig
 .yarnrc
 webpack.config.js
 vsc-extension-quickstart.md
