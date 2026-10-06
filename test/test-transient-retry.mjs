@@ -41,7 +41,7 @@ function check(name, fn) {
 
 /** 构造与真实错误消息同形的 Error（provider 抛出的格式） */
 const apiError = (status, body = "") =>
-    new Error(`API error: [${status}] Internal Server Error ${body} URL: https://api.senseaudio.cn/v1/chat/completions`);
+    new Error(`API error: [${status}] Internal Server Error ${body} URL: https://api.example.com/v1/chat/completions`);
 
 // ---------------------------------------------------------------------------
 // 1. 默认状态码列表

@@ -14,7 +14,6 @@ vsc-extension-quickstart.md
 scripts/
 test/
 AGENTS.md
-基云律动.md
 eslint.config.mjs
 .copilot/
 docs/

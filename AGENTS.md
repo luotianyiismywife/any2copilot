@@ -21,7 +21,7 @@
 
 ### 1.1 概述
 
-**Copilot Provider Scaffold** 是一个 **VS Code 扩展脚手架**，用于把**任意 OpenAI 兼容平台**接入 GitHub Copilot Chat 作为语言模型提供商。它从 [sense-audio-copilot](https://github.com/luotianyiismywife/sense-audio-copilot) 抽出：剥离所有平台专属内容（URL、凭据、模型定义、字段映射），只保留可复用的骨架。
+**Copilot Provider Scaffold** 是一个 **VS Code 扩展脚手架**，用于把**任意三协议兼容（OpenAI / Anthropic / Responses）平台**接入 GitHub Copilot Chat 作为语言模型提供商。它从 [sense-audio-copilot](https://github.com/luotianyiismywife/sense-audio-copilot) 抽出：剥离所有平台专属内容（URL、凭据、模型定义、字段映射），只保留可复用的骨架。
 
 > ⚠️ **本仓库不是开箱即用的插件**。它不含任何平台凭据/端点/模型定义，必须先按 [`PLATFORM_PORTING.md`](../PLATFORM_PORTING.md) 填入自己平台的信息。
 

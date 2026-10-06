@@ -2,7 +2,7 @@
 	"name": "any2copilot",
 	"publisher": "luotianyiismywife",
 	"displayName": "Copilot Provider Scaffold",
-	"description": "A VS Code extension scaffold for integrating any OpenAI-compatible platform into GitHub Copilot Chat. Fill in your platform details per PLATFORM_PORTING.md.",
+	"description": "A VS Code extension scaffold for integrating any three-protocol-compatible platform (OpenAI / Anthropic / Responses) into GitHub Copilot Chat. Fill in your platform details per PLATFORM_PORTING.md.",
 	"keywords": [
 		"ai",
 		"chat",
@@ -105,7 +105,7 @@
 		],
 		"walkthroughs": [
 			{
-				"id": "tokenRhythmGettingStarted",
+				"id": "copilotProviderGettingStarted",
 				"title": "%walkthrough.title%",
 				"description": "%walkthrough.description%",
 				"steps": [

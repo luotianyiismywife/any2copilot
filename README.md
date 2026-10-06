@@ -13,10 +13,10 @@
 > credentials, endpoints or model definitions. You must fill in your own platform's details before
 > it can talk to any API. See [`PLATFORM_PORTING.md`](PLATFORM_PORTING.md).
 
-A **VS Code extension scaffold** for integrating any **OpenAI-compatible platform** into GitHub
-Copilot Chat as a language-model provider. It was extracted from
-[sense-audio-copilot](https://github.com/luotianyiismywife/sense-audio-copilot) by stripping out
-everything platform-specific and keeping the reusable skeleton.
+A **VS Code extension scaffold** for integrating any **three-protocol-compatible platform**
+(OpenAI / Anthropic / Responses) into GitHub Copilot Chat as a language-model provider. It was
+extracted from [sense-audio-copilot](https://github.com/luotianyiismywife/sense-audio-copilot) by
+stripping out everything platform-specific and keeping the reusable skeleton.
 
 ### What you get
 
@@ -96,7 +96,7 @@ AGPL-3.0 License. This scaffold builds upon the architecture of
 > **这是一个脚手架 / 模板，不是开箱即用的插件。** 它不含任何平台专属的凭据、端点或模型定义。
 > 你必须先填入自己平台的信息才能对接 API。详见 [`PLATFORM_PORTING.md`](PLATFORM_PORTING.md)。
 
-一个把**任意 OpenAI 兼容平台**接入 GitHub Copilot Chat 的 **VS Code 扩展脚手架**。
+一个把**任意三协议兼容（OpenAI / Anthropic / Responses）平台**接入 GitHub Copilot Chat 的 **VS Code 扩展脚手架**。
 它从 [sense-audio-copilot](https://github.com/luotianyiismywife/sense-audio-copilot) 抽出：
 剥离所有平台专属内容，只保留可复用的骨架。
 

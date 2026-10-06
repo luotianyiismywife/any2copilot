@@ -18,7 +18,7 @@ const PKG_PATH = join(ROOT, "package.json");
 const OUT_DIR = join(ROOT, "out");
 const LOG_DIR = join(ROOT, ".copilot");
 const LOG_PATH = join(LOG_DIR, "build-log.md");
-const LOG_HEADER = `# SenseAudio 编译日志
+const LOG_HEADER = `# 编译日志
 
 > 每次执行 \`npm run compile\` 时由 \`scripts/build/build-info.mjs\` 自动追加。
 > 编译时间均标注时区（本地时间 + IANA 时区 + UTC 偏移），方便跨机器追溯产物来源。
@@ -71,7 +71,7 @@ let content = "";
 if (existsSync(LOG_PATH)) {
     content = readFileSync(LOG_PATH, "utf8");
 }
-if (!content.includes("# SenseAudio 编译日志")) {
+if (!content.includes("# 编译日志")) {
     content = LOG_HEADER;
 }
 if (!content.endsWith("\n")) {

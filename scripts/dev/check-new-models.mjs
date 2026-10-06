@@ -3,21 +3,27 @@
 /**
  * Check for new models available on the API that are not yet hardcoded.
  *
- * Extracts hardcoded model IDs from src/models.ts (BUILT_IN_MODELS),
+ * Extracts hardcoded model IDs from src/models/models.ts (BUILT_IN_MODELS),
  * then compares against the API model list from /v1/models.
  *
  * Outputs JSON result that can be consumed by a GitHub Action.
  *
  * Usage:
- *   node scripts/dev/check-new-models.mjs
+ *   node scripts/dev/check-new-models.mjs [--api-key <key>]
  *
  * Exit codes:
  *   0 — no new models found (or API unreachable)
  *   1 — new models found
  */
 
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+// ⚠️ 移植对接点：API 根地址与 models.ts 路径。
+// 地址应与 src/platform/platformConfig.ts 的 API_BASE_URL 一致。
 const API_BASE_URL = "https://api.senseaudio.cn/v1/";
-const MODELS_TS_PATH = new URL("../src/models.ts", import.meta.url);
+const MODELS_TS_PATH = fileURLToPath(new URL("../../src/models/models.ts", import.meta.url));
+const API_KEY_ENV = "SENSEAUDIO_API_KEY";
 
 // ── Helpers ──
 
@@ -146,11 +152,10 @@ async function probeThinkingSupport(apiKey, modelId, apiMode = "openai") {
 async function main() {
     const args = process.argv.slice(2);
     const apiKeyIndex = args.indexOf("--api-key");
-    const apiKey = apiKeyIndex >= 0 ? args[apiKeyIndex + 1] : process.env.SENSEAUDIO_API_KEY;
+    const apiKey = apiKeyIndex >= 0 ? args[apiKeyIndex + 1] : process.env[API_KEY_ENV];
 
     // 1. Read hardcoded IDs
-    const fs = await import("fs");
-    const modelsTs = fs.readFileSync(MODELS_TS_PATH, "utf-8");
+    const modelsTs = readFileSync(MODELS_TS_PATH, "utf-8");
 
     const builtInIds = extractModelsFromBuiltIn(modelsTs);
     const allHardcodedIds = [...new Set(builtInIds)].sort();
