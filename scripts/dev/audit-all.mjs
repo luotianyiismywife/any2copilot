@@ -30,16 +30,18 @@ const srcText = new Map(srcFiles.map((f) => [f, fs.readFileSync(f, "utf8")]));
 // ── 1. 设置项漂移 ──
 {
     const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
-    const declared = new Set(
-        Object.keys(pkg.contributes.configuration.properties).map((k) => k.replace(/^senseaudio\./, "")),
-    );
+    const settingKeys = Object.keys(pkg.contributes.configuration.properties);
+    // 从第一个设置键推导前缀（移植改名后无需改本脚本）
+    const PREFIX = settingKeys[0]?.split(".")[0] ?? "";
+    const prefixRe = PREFIX.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const declared = new Set(settingKeys.map((k) => k.replace(new RegExp(`^${prefixRe}\\.`), "")));
     const NON_SETTING = new Set([
         "loginToken", "apiKeys", "apiKey", "cloudSyncGistId", "lastCloudSyncAt", "lastModelSyncDate",
     ]);
     const used = new Set();
     for (const text of srcText.values()) {
-        for (const m of text.matchAll(/get(?:<[^>]*>)?\(\s*"senseaudio\.([A-Za-z0-9_.]+)"/g)) used.add(m[1]);
-        for (const m of text.matchAll(/getConfiguration\(\s*"senseaudio(\.[A-Za-z0-9_.]+)?"\s*\)/g)) {
+        for (const m of text.matchAll(new RegExp(`get(?:<[^>]*>)?\\(\\s*"${prefixRe}\\.([A-Za-z0-9_.]+)"`, "g"))) used.add(m[1]);
+        for (const m of text.matchAll(new RegExp(`getConfiguration\\(\\s*"${prefixRe}(\\.[A-Za-z0-9_.]+)?"\\s*\\)`, "g"))) {
             const prefix = m[1] ? m[1].slice(1) + "." : "";
             for (const g of text.matchAll(/\.get(?:<[^>]*>)?\(\s*"([A-Za-z0-9_]+)"/g)) used.add(prefix + g[1]);
             const constKeys = new Map();
@@ -51,8 +53,8 @@ const srcText = new Map(srcFiles.map((f) => [f, fs.readFileSync(f, "utf8")]));
         }
     }
     for (const k of NON_SETTING) used.delete(k);
-    for (const k of used) if (!declared.has(k)) note(`[settings] used but NOT declared: senseaudio.${k}`);
-    for (const k of declared) if (!used.has(k)) note(`[settings] declared but NOT used: senseaudio.${k}`);
+    for (const k of used) if (!declared.has(k)) note(`[settings] used but NOT declared: ${PREFIX}.${k}`);
+    for (const k of declared) if (!used.has(k)) note(`[settings] declared but NOT used: ${PREFIX}.${k}`);
 }
 
 // ── 2. 未使用的导出 ──

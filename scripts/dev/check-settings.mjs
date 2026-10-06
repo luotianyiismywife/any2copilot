@@ -1,10 +1,12 @@
 // 核对 package.json 声明的设置项与代码中实际读取的设置项是否一致。
 //
 // 代码里有三种读取形式：
-//   1. getConfiguration().get("senseaudio.xxx")        —— 带前缀
-//   2. getConfiguration("senseaudio").get("xxx")       —— 无前缀（同文件内）
-//   3. const XXX_KEY = "xxx"; ... .get(XXX_KEY)        —— 常量键
+//   1. getConfiguration().get("<prefix>.xxx")        —— 带前缀
+//   2. getConfiguration("<prefix>").get("xxx")       —— 无前缀（同文件内）
+//   3. const XXX_KEY = "xxx"; ... .get(XXX_KEY)      —— 常量键
 // 本脚本三种都识别。
+//
+// 前缀（<prefix>）从 package.json 的设置键动态推导，移植改名后无需改本脚本。
 //
 // 用法：
 //   node scripts/dev/check-settings.mjs              # 有漂移则退出码 1（挂到 npm run compile）
@@ -15,8 +17,12 @@ import path from "node:path";
 const warnOnly = process.argv.includes("--warn-only");
 
 const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+const settingKeys = Object.keys(pkg.contributes.configuration.properties);
+// 从第一个设置键推导前缀（如 "senseaudio.commitLanguage" → "senseaudio"）
+const PREFIX = settingKeys[0]?.split(".")[0] ?? "";
+const prefixRe = PREFIX.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const declared = new Set(
-    Object.keys(pkg.contributes.configuration.properties).map((k) => k.replace(/^senseaudio\./, "")),
+    settingKeys.map((k) => k.replace(new RegExp(`^${prefixRe}\\.`), "")),
 );
 
 /** globalState / secrets 的键不是设置项，需排除 */
@@ -37,11 +43,11 @@ function walk(dir) {
         else if (e.name.endsWith(".ts")) {
             const text = fs.readFileSync(p, "utf8");
             // 形式 1：带前缀
-            for (const m of text.matchAll(/get(?:<[^>]*>)?\(\s*"senseaudio\.([A-Za-z0-9_.]+)"/g)) {
+            for (const m of text.matchAll(new RegExp(`get(?:<[^>]*>)?\\(\\s*"${prefixRe}\\.([A-Za-z0-9_.]+)"`, "g"))) {
                 used.add(m[1]);
             }
-            // 形式 2 / 3：getConfiguration("senseaudio") 或嵌套节 getConfiguration("senseaudio.retry")
-            for (const m of text.matchAll(/getConfiguration\(\s*"senseaudio(\.[A-Za-z0-9_.]+)?"\s*\)/g)) {
+            // 形式 2 / 3：getConfiguration("<prefix>") 或嵌套节 getConfiguration("<prefix>.retry")
+            for (const m of text.matchAll(new RegExp(`getConfiguration\\(\\s*"${prefixRe}(\\.[A-Za-z0-9_.]+)?"\\s*\\)`, "g"))) {
                 const section = m[1] ? m[1].slice(1) : ""; // 去掉前导点
                 const prefix = section ? `${section}.` : "";
                 // 收集该节内的无前缀 .get("xxx")
@@ -71,11 +77,11 @@ const declaredNotUsed = [...declared].filter((k) => !used.has(k)).sort();
 console.log(`[check-settings] declared: ${declared.size}, used: ${used.size}`);
 if (usedNotDeclared.length > 0) {
     console.log(`[check-settings] ⚠️  used but NOT declared (${usedNotDeclared.length}) — 用户无法在设置界面看到/修改：`);
-    for (const k of usedNotDeclared) console.log(`[check-settings]      senseaudio.${k}`);
+    for (const k of usedNotDeclared) console.log(`[check-settings]      ${PREFIX}.${k}`);
 }
 if (declaredNotUsed.length > 0) {
     console.log(`[check-settings] ⚠️  declared but NOT used (${declaredNotUsed.length}) — 空操作设置项：`);
-    for (const k of declaredNotUsed) console.log(`[check-settings]      senseaudio.${k}`);
+    for (const k of declaredNotUsed) console.log(`[check-settings]      ${PREFIX}.${k}`);
 }
 
 const drift = usedNotDeclared.length + declaredNotUsed.length;

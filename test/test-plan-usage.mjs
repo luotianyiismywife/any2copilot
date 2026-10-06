@@ -63,7 +63,7 @@ function check(name, fn) {
 // ---------------------------------------------------------------------------
 console.log("classifyWindow / getWindowLabel");
 
-check("SenseAudio 原生 key 归类正确", () => {
+check("平台原生 key 归类正确", () => {
     assert.equal(classifyWindow("credit_5h_limit", "5小时积分"), "rolling");
     assert.equal(classifyWindow("credit_7d_limit", "每周全部模型积分"), "weekly");
     assert.equal(classifyWindow("credit_30d_limit", "30天积分"), "monthly");

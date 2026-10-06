@@ -81,9 +81,9 @@ function maskApiKey(key) {
 // ── 模拟场景 ──
 // 纯逻辑模拟（不发任何网络请求），key 值仅作占位符。
 // 可用环境变量覆盖以便对照真实 key 的脱敏输出：
-//   SENSEAUDIO_TEST_BANNED_KEY / SENSEAUDIO_TEST_NORMAL_KEY
-const bannedKey = process.env.SENSEAUDIO_TEST_BANNED_KEY || "sk-banned-placeholder-0000000000000000000000000000000000000000000000aaaa";
-const normalKey = process.env.SENSEAUDIO_TEST_NORMAL_KEY || "sk-normal-placeholder-0000000000000000000000000000000000000000000000bbbb";
+//   PROVIDER_TEST_BANNED_KEY / PROVIDER_TEST_NORMAL_KEY
+const bannedKey = process.env.PROVIDER_TEST_BANNED_KEY || "sk-banned-placeholder-0000000000000000000000000000000000000000000000aaaa";
+const normalKey = process.env.PROVIDER_TEST_NORMAL_KEY || "sk-normal-placeholder-0000000000000000000000000000000000000000000000bbbb";
 const store = {
     keys: [
         { value: bannedKey, available: null }, // 封号 key
@@ -93,7 +93,7 @@ const store = {
 
 // 模拟 API 返回（实测抓取的封号响应）
 const bannedApiError = new Error(
-    'API error: [400] Bad Request\n{"code":"billing","message":"计费账户已被冻结","ref_code":400901,"ref_scope":"common"}\nURL: https://api.senseaudio.cn/v1/chat/completions'
+    'API error: [400] Bad Request\n{"code":"billing","message":"计费账户已被冻结","ref_code":400901,"ref_scope":"common"}\nURL: https://api.example.com/v1/chat/completions'
 );
 
 console.log("=== 场景 1：封号 key 发请求 ===");

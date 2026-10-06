@@ -14,7 +14,7 @@
  *   deterministic 500, so it is never sent)
  */
 
-/** Content block types supported by SenseAudio's Responses endpoint. */
+/** Content block types supported by the platform's Responses endpoint. */
 export type ResponsesContentType = "input_text" | "output_text" | "input_image";
 
 /** A single content block inside a response input/output message. */

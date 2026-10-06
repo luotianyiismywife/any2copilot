@@ -107,7 +107,7 @@ try {
             }],
         },
         { role: "tool", tool_call_id: entry.id, content: entry.result },
-        // senseaudio always round-trips reasoning_content on assistant messages
+        // The provider always round-trips reasoning_content on assistant messages
         // when includeReasoningInRequest is true (DeepSeek requires the field on
         // every assistant message; empty string satisfies the presence check).
         { role: "assistant", content: "The previous answer.", reasoning_content: "" },
