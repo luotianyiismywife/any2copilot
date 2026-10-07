@@ -1,6 +1,6 @@
 # 套餐用量与余额显示 — 设计与移植指南
 
-> 适用范围：状态栏主文本、悬停提示、`<prefix>.checkUsage` 命令
+> 适用范围：状态栏主文本、悬停提示、`<prefix>.checkUsage` 命令（仅状态栏点击）
 > 参考实现：上游 [opencode-go-copilot](https://github.com/OnesoftQwQ/opencode-go-copilot) 的 `goUsage.ts` + `statusBar.ts`
 
 ---
@@ -130,7 +130,7 @@ src/balance/
 └── balanceCheck.ts  # barrel
 
 src/ui/statusBar.ts  # 渲染 + 后台轮询 + 点击刷新
-src/commands/checkUsageCommand.ts  # <prefix>.checkUsage 命令
+src/commands/checkUsageCommand.ts  # <prefix>.checkUsage 命令（仅状态栏点击）
 ```
 
 ### 4.1 数据流
@@ -144,7 +144,7 @@ initStatusBar(context, getLoginToken)
                           └── queryAccountInfo()  ← ★ 平台端点
               └── updateStatusBarUsageText() + updateCumulativeTooltip()
 
-点击状态栏 / <prefix>.checkUsage
+点击状态栏（<prefix>.checkUsage）
   └── refreshPlanUsageNow()                  ← force=true 绕过 TTL
 ```
 

@@ -2,8 +2,6 @@
 	"providerDisplayName": "Copilot Provider Scaffold",
 	"commandCategory": "Copilot Provider",
 
-	"command.setApiKey": "Set API Key",
-	"command.getApiKey": "Get API Key",
 	"command.openSettings": "Open Settings",
 	"command.generateCommit": "Generate Commit Message",
 	"command.abortCommit": "Generate Commit Message - Stop",
@@ -70,9 +68,7 @@
 	"config.apiKeyExhaustedCooldownMin.desc": "Cooldown (minutes) for transiently exhausted keys (e.g. rate-limited with 429) before they can be reused. 0 = immediately reusable.",
 	"config.transientRetryTimes.desc": "How many times to automatically retry the whole key-rotation round when every key fails with a transient error (429 rate limit / 500 internal error / 503 server busy). Waits with exponential backoff (2s/4s/8s) between rounds and clears the transient cooldown before retrying. 0 = disable auto-retry.",
 
-	"command.setModelPreset": "Set Model Temperature Preset",
 	"command.manageApiKeys": "Manage API Keys",
-	"command.setVisionProxyModel": "Select Vision Proxy Model",
 	"command.syncPush": "Push API Keys to Cloud (Gist)",
 	"command.syncPull": "Pull API Keys from Cloud (Gist)",
 	"command.checkUsage": "Check Plan Usage & Balance",
@@ -95,7 +91,7 @@
 	"walkthrough.title": "Copilot Provider Scaffold",
 	"walkthrough.description": "Set up your platform's models in Copilot Chat.",
 	"walkthrough.setApiKey.title": "Set your API key",
-	"walkthrough.setApiKey.description": "[Get an API key](command:any2copilot.getApiKey).\n[Set API Key](command:any2copilot.setApiKey)",
+	"walkthrough.setApiKey.description": "[Get an API key](https://example.com).\n[Manage API Keys](command:any2copilot.manageApiKeys)",
 	"walkthrough.showModels.title": "Show models",
 	"walkthrough.showModels.description": "If the models are hidden, open VS Code's Language Models manager and show the models.\n[Open Language Models](command:workbench.action.chat.manage)",
 	"walkthrough.advancedSettings.title": "Explore advanced settings",

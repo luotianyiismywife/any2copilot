@@ -41,20 +41,10 @@
 			{
 				"vendor": "any2copilot",
 				"displayName": "%providerDisplayName%",
-				"managementCommand": "any2copilot.setApiKey"
+				"managementCommand": "any2copilot.manageApiKeys"
 			}
 		],
 		"commands": [
-			{
-				"command": "any2copilot.setApiKey",
-				"category": "%commandCategory%",
-				"title": "%command.setApiKey%"
-			},
-			{
-				"command": "any2copilot.getApiKey",
-				"category": "%commandCategory%",
-				"title": "%command.getApiKey%"
-			},
 			{
 				"command": "any2copilot.openSettings",
 				"category": "%commandCategory%",
@@ -73,19 +63,9 @@
 				"icon": "$(debug-stop)"
 			},
 			{
-				"command": "any2copilot.setModelPreset",
-				"category": "%commandCategory%",
-				"title": "%command.setModelPreset%"
-			},
-			{
 				"command": "any2copilot.manageApiKeys",
 				"category": "%commandCategory%",
 				"title": "%command.manageApiKeys%"
-			},
-			{
-				"command": "any2copilot.setVisionProxyModel",
-				"category": "%commandCategory%",
-				"title": "%command.setVisionProxyModel%"
 			},
 			{
 				"command": "any2copilot.syncPush",
@@ -117,7 +97,7 @@
 							"markdown": "resources/walkthrough/set-api-key.md"
 						},
 						"completionEvents": [
-							"onCommand:any2copilot.setApiKey"
+							"onCommand:any2copilot.manageApiKeys"
 						]
 					},
 					{
@@ -160,6 +140,10 @@
 				{
 					"command": "any2copilot.abortGitCommitMessage",
 					"when": "config.git.enabled && any2copilot.isGeneratingCommit"
+				},
+				{
+					"command": "any2copilot.checkUsage",
+					"when": "false"
 				}
 			]
 		},

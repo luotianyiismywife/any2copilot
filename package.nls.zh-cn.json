@@ -2,8 +2,6 @@
 	"providerDisplayName": "Copilot Provider Scaffold",
 	"commandCategory": "Copilot Provider",
 
-	"command.setApiKey": "设置 API 密钥",
-	"command.getApiKey": "获取 API 密钥",
 	"command.openSettings": "打开设置",
 	"command.generateCommit": "生成提交消息",
 	"command.abortCommit": "生成提交消息 - 停止",
@@ -70,9 +68,7 @@
 	"config.apiKeyExhaustedCooldownMin.desc": "瞬态失效 key（如 429 限流）在可被再次使用前的冷却时长（分钟）。0 = 立即恢复可用。",
 	"config.transientRetryTimes.desc": "全部 key 因瞬态错误（429 限流 / 500 内部错误 / 503 服务端繁忙）而不可用时，自动重试整个轮换循环的次数。每轮之间指数退避等待（2 秒/4 秒/8 秒），重试前清空瞬态冷却。0 = 禁用自动重试。",
 
-	"command.setModelPreset": "设置模型温度预设",
 	"command.manageApiKeys": "管理 API Keys",
-	"command.setVisionProxyModel": "选择视觉代理模型",
 	"command.syncPush": "推送 API Keys 到云端 (Gist)",
 	"command.syncPull": "从云端拉取 API Keys (Gist)",
 	"command.checkUsage": "查询套餐用量与余额",
@@ -95,7 +91,7 @@
 	"walkthrough.title": "Copilot Provider Scaffold",
 	"walkthrough.description": "在 Copilot Chat 中配置你平台的模型。",
 	"walkthrough.setApiKey.title": "设置你的 API 密钥",
-	"walkthrough.setApiKey.description": "[获取 API 密钥](command:any2copilot.getApiKey)。\n[设置 API 密钥](command:any2copilot.setApiKey)",
+	"walkthrough.setApiKey.description": "[获取 API 密钥](https://example.com)。\n[管理 API Keys](command:any2copilot.manageApiKeys)",
 	"walkthrough.showModels.title": "显示模型",
 	"walkthrough.showModels.description": "如果模型被隐藏，请打开 VS Code 的语言模型管理器并显示模型。\n[打开语言模型管理](command:workbench.action.chat.manage)",
 	"walkthrough.advancedSettings.title": "探索高级设置",

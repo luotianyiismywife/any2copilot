@@ -51,16 +51,16 @@
 | **Token 计数** | 使用 `o200k_base` tiktoken 分词器精确统计 token 用量 |
 | **原生 Token 指示器** | 始终启用，向 Copilot Chat 原生 Token 指示器报告 token 用量。通过发送 MIME 类型为 `usage` 的 `LanguageModelDataPart` 实现。依赖 VS Code/Copilot Chat 1.116+ |
 | **高级 Token 指示器** | 可通过 `<prefix>.enableThirdPartyTokenIndicator` 配置（**默认关闭**）控制 VS Code 状态栏中的高级 Token 计数器。**状态栏可见性由 `isStatusBarEnabled()` 决定 = 高级 Token 指示器 OR 套餐用量显示**。状态栏**仅在用户实际使用本插件提供的模型时显示**：启动时隐藏，发起请求时显示，停止使用（空闲 60 秒）后自动隐藏 |
-| **套餐用量与余额显示** | 状态栏主文本显示**套餐用量**：额度内显示 `$(pulse) 5H 65%`（5 小时限流窗口），额度耗尽显示 `$(pulse) 余额 ¥358.78`；悬停提示展示 5h/周/月三窗口 + 5h 重置倒计时 + 余额 + 计费模式说明。**两套计费规则严格区分**：① **周期额度**（5h/周）是**限流窗口**，耗尽后等下一周期自动恢复、**不消耗余额**；② **套餐积分**（月度）才是**订阅额度**，耗尽后走超额策略——`enableExtraUsage=true` 则按量计费，否则**降级 Free 版**。三态 `billingMode`：`plan`/`extra`/`free`。数据源为账号信息端点，TTL 缓存 + **失败保留旧快照**（静默降级）。后台轮询（`<prefix>.usageRefreshInterval` 默认 5 分钟）+ 点击状态栏/`<prefix>.checkUsage` 命令强制刷新。**⚠️ 单位陷阱**：代金券积分 `1 元 = 1,000,000 积分`（`POINTS_PER_CNY`），与套餐积分**不是同一单位**。实现见 `src/balance/planUsage.ts`，设计/移植指南见 `docs/plan-usage-design.md`。**同时支持「仅余额」与「余额 + 用量窗口」两种数据格式**（`usageInfos` 为空 → 只显示余额行） |
+| **套餐用量与余额显示** | 状态栏主文本显示**套餐用量**：额度内显示 `$(pulse) 5H 65%`（5 小时限流窗口），额度耗尽显示 `$(pulse) 余额 ¥358.78`；悬停提示展示 5h/周/月三窗口 + 5h 重置倒计时 + 余额 + 计费模式说明。**两套计费规则严格区分**：① **周期额度**（5h/周）是**限流窗口**，耗尽后等下一周期自动恢复、**不消耗余额**；② **套餐积分**（月度）才是**订阅额度**，耗尽后走超额策略——`enableExtraUsage=true` 则按量计费，否则**降级 Free 版**。三态 `billingMode`：`plan`/`extra`/`free`。数据源为账号信息端点，TTL 缓存 + **失败保留旧快照**（静默降级）。后台轮询（`<prefix>.usageRefreshInterval` 默认 5 分钟）+ 点击状态栏（`<prefix>.checkUsage` 命令，命令面板隐藏）强制刷新。**⚠️ 单位陷阱**：代金券积分 `1 元 = 1,000,000 积分`（`POINTS_PER_CNY`），与套餐积分**不是同一单位**。实现见 `src/balance/planUsage.ts`，设计/移植指南见 `docs/plan-usage-design.md`。**同时支持「仅余额」与「余额 + 用量窗口」两种数据格式**（`usageInfos` 为空 → 只显示余额行） |
 | **Git 提交消息生成** | 一键生成 Conventional Commit 格式的 Git 提交消息，支持 `auto` 语言模式自动从历史提交检测语言 |
 | **多仓库支持** | 支持多根工作区 (multi-root) 中多个 Git 仓库的提交消息生成 |
-| **模型预设** | 支持通过命令面板快速切换 temperature/top_p 预设（🎯 Precise/⚖️ Balanced/🔥 Creative），也支持手动自定义输入 |
+| **模型预设** | 支持通过 `<prefix>.modelPreset` 设置切换 temperature/top_p 预设（🎯 Precise/⚖️ Balanced/🔥 Creative），也支持手动自定义输入 |
 | **国际化** | 内置简体中文 (zh-cn) 中英文双语界面 |
 | **重试机制** | **两层重试，职责分离**：① **HTTP 层**（`executeWithRetry`，`<prefix>.retry.*`）——同一请求退避重试，默认 2 次，仅覆盖**网关错误**（502/504）与网络错误；② **整轮层**（`tryTransientRetryRound`，`<prefix>.transientRetry*`）——重跑整个 key 轮换循环，默认 3 次，覆盖平台错误（429/500/503）。**两层刻意不重叠**。**换 key vs 不换 key**：命中 `<prefix>.apiKeyRotationStatusCodes`（默认 [401,402,429,503]）→ 换 key；命中 `<prefix>.transientRetryStatusCodes`（默认 [429,500,503]）但**不**命中换 key 状态码（如 500）→ 不换 key、退避后重试同一 key。**封号判定**：命中 `<prefix>.apiKeyBannedErrorPatterns`（默认 `["计费账户已被冻结", "\"code\":\"billing\"", "ref_code:400901"]`）→ `reason="banned"` 持久化失效。配置指南见 `docs/retry-and-key-rotation.md` |
 | **请求延迟** | 可配置的请求间隔延迟，避免触发 API 限流 |
 | **超时控制** | 可配置的请求超时时间（默认 10 分钟） |
 | **立即取消** | 取消请求时通过 `reader.cancel()` 立即中断流式读取 |
-| **视觉代理配置** | 支持通过设置 `<prefix>.visionProxyModel`、`<prefix>.visionProxyThinking` 配置图片代理所使用的视觉模型和思考模式。**视觉模型仅从本供应商查找**（`findVisionModel` 多级回退匹配裸 ID/完整 ID）。**视觉代理模型动态选择**：`<prefix>.setVisionProxyModel` 命令从 `/v1/models` 动态加载视觉模型列表（视觉能力经 models.dev 判定），QuickPick 选择代替手填；API 不可用时回退手填 |
+| **视觉代理配置** | 支持通过设置 `<prefix>.visionProxyModel`、`<prefix>.visionProxyThinking` 配置图片代理所使用的视觉模型和思考模式。**视觉模型仅从本供应商查找**（`findVisionModel` 多级回退匹配裸 ID/完整 ID）。视觉模型 ID 直接通过 `<prefix>.visionProxyModel` 设置填写 |
 | **安装欢迎页 (Walkthrough)** | 引导向导（3 个步骤：设置 API Key、显示模型、高级设置），**仅可手动打开**（命令面板 → Welcome: Open Walkthrough）。**不自动弹出** |
 
 > **注**：上表中的 `<prefix>` 指命令/设置前缀（当前 `any2copilot`，移植时全局替换，见 [`PLATFORM_PORTING.md`](../PLATFORM_PORTING.md) §1.2）。
@@ -145,9 +145,8 @@ activate(context)
   ├── vscode.lm.registerLanguageModelChatProvider(<vendor>, provider)
   ├── registerCommands(context, provider)   ← 委托 src/commands/registerCommands.ts
   │   ├── onDidChangeConfiguration 监听       ← apiMode / enableAutoModelDiscovery 变化时刷新模型列表
-  │   └── 注册全部命令（setApiKey / manageApiKeys / setVisionProxyModel /
-  │       getApiKey / openSettings / generateGitCommitMessage /
-  │       abortGitCommitMessage / setModelPreset / syncPush / syncPull / checkUsage）
+  │   └── 注册全部命令（manageApiKeys / openSettings / generateGitCommitMessage /
+  │       abortGitCommitMessage / syncPush / syncPull / checkUsage）
   ├── syncModelsOnStartup(context)          ← 启动模型同步（每日最多一次）
   ├── autoPullOnStartup(context)            ← 启动云同步自动拉取（静默）
   ├── registerCloudSyncAutoPush(context)    ← 注册 key store 变更监听（去抖自动推送）
@@ -370,9 +369,7 @@ src/
 │   ├── apiKeyManagerUi.ts                # manageApiKeys 主入口
 │   ├── apiKeyDisplay.ts                  # key 展示辅助（余额格式化 / 详情行 / QuickPick 项）
 │   ├── apiKeyFlows.ts                    # key 管理交互流程（增删改/导入/检测/cookie）
-│   ├── checkUsageCommand.ts              # 套餐用量查询命令
-│   ├── visionProxyCommand.ts             # 视觉代理模型选择
-│   └── modelPresetCommand.ts             # 模型温度预设选择
+│   └── checkUsageCommand.ts              # 套餐用量刷新（仅状态栏点击，命令面板隐藏）
 ├── core/                                 # 基础设施
 │   ├── logger.ts                         # 日志系统
 │   ├── localize.ts                       # 国际化/本地化（★ 移植时替换文案）
@@ -469,9 +466,7 @@ test/                                     # 测试脚本（运行前需 npm run 
 | `commands/apiKeyManagerUi.ts` | `showApiKeyManager()` 主入口 |
 | `commands/apiKeyDisplay.ts` | key 展示辅助（纯函数） |
 | `commands/apiKeyFlows.ts` | key 管理交互流程 |
-| `commands/checkUsageCommand.ts` | 套餐用量查询命令 |
-| `commands/visionProxyCommand.ts` | 视觉代理模型选择命令 |
-| `commands/modelPresetCommand.ts` | 模型温度预设选择命令 |
+| `commands/checkUsageCommand.ts` | 套餐用量刷新（仅状态栏点击，命令面板隐藏） |
 | `core/logger.ts` | 日志输出 (LogOutputChannel) |
 | `core/localize.ts` | 中英文国际化（★ 移植时替换文案） |
 | `core/types.ts` | `ProviderModelItem` 等类型定义 |
@@ -576,7 +571,6 @@ test/                                     # 测试脚本（运行前需 npm run 
 | 常量 | 用途 |
 |------|------|
 | `API_BASE_URL` | OpenAI 兼容 API 根地址（以 `/` 结尾） |
-| `PLATFORM_API_KEY_URL` | 获取 API Key 页面（"获取密钥"命令跳转目标） |
 | `PLATFORM_USER_SELF_URL` | 用户中心账号信息端点（套餐用量 / 余额查询） |
 | `PLATFORM_HEADERS` | 用户中心接口必需固定头 |
 | `FALLBACK_TEST_MODEL_ID` | 模型列表不可用时的兜底测试模型 ID |
@@ -641,7 +635,7 @@ test/                                     # 测试脚本（运行前需 npm run 
 - `models.ts` ★：`BUILT_IN_MODELS`（移植时替换）/ `getBuiltInModelInfos` / `getBuiltInModelIds` / `getMaxInputTokensRatio` / `getBuiltInModelConfig`
 - `apiModelList.ts`：`getApiModelIds` / `getApiModelMetadataList` / `getResponsesSupportedModelIds` / `getAnthropicSupportedModelIds` / `isApiFetchSuccessful`
 - `modelsDev.ts`：`ensureModelsDevLoaded` / `lookupModelDevEntry`
-- `visionModels.ts`：`resolveVisionCapability` / `getVisionSupportedModelIds`
+- `visionModels.ts`：`resolveVisionCapability`
 - `modelSync.ts`：`syncModelsOnStartup`
 - `provideModel.ts`：`prepareLanguageModelChatInformation` / `getResponsesModelIds` / `getAnthropicModelIds` / `getAutoDiscoveredModelConfig`
 
@@ -652,8 +646,6 @@ test/                                     # 测试脚本（运行前需 npm run 
 - `apiKeyDisplay.ts`：`formatBalanceDetailText` / `fetchAccountInfo` / `buildKeyDetailLine` / `buildKeyQuickPickItems`
 - `apiKeyFlows.ts`：`KeyManagerContext` / `queryBalanceFlow` / `addKeyFlow` / `parseBatchImport` / `batchImportFlow` / `deleteKeysFlow` / `pickKey` / `checkAvailabilityFlow` / `checkAllAvailabilityFlow` / `showCheckMenu` / `bindCookieFlow` / `editKeyFlow`
 - `checkUsageCommand.ts`：`checkUsageCommand(context)`
-- `visionProxyCommand.ts`：`setVisionProxyModelCommand(context)`
-- `modelPresetCommand.ts`：`setModelPresetCommand()`
 
 ### 5.9 `src/core/` 模块
 

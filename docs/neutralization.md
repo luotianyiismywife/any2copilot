@@ -18,9 +18,8 @@
 | **显示名** | `Copilot Provider Scaffold` | 你的显示名（如 `MyPlatform Provider`） | `package.json` → `displayName`；`package.nls*.json` → `providerDisplayName` / `config.title` / `walkthrough.title` |
 | **vendor / 前缀** | `any2copilot` | 你的平台标识（如 `myplatform`） | `package.json` → `vendor` / 命令 ID / 设置键；全部 `src/**/*.ts`；`resources/walkthrough/*.md` |
 | **API 根地址** | `https://api.example.com/v1/` | 你的 OpenAI 兼容 API 根地址 | `src/platform/platformConfig.ts` → `API_BASE_URL` |
-| **获取密钥页** | `https://example.com/api-platform/api-key` | 你的获取密钥页面 | `src/platform/platformConfig.ts` → `PLATFORM_API_KEY_URL` |
 | **用户中心端点** | `https://platform.example.com/api/user/self` | 你的账号信息端点（无则留空） | `src/platform/platformConfig.ts` → `PLATFORM_USER_SELF_URL` |
-| **官网域名** | `https://example.com` | 你的官网 | `src/platform/platformConfig.ts` → `LOGIN_TOKEN_SOURCE_HINT` |
+| **官网域名** | `https://example.com` | 你的官网 | `src/platform/platformConfig.ts` → `LOGIN_TOKEN_SOURCE_HINT`；`resources/walkthrough/*.md`（获取密钥链接） |
 | **平台固定头** | `x-product: Example` | 你的域校验头（无则删） | `src/platform/platformConfig.ts` → `PLATFORM_HEADERS` |
 | **环境变量前缀** | `PROVIDER_` | 你的前缀（如 `MYPLATFORM_`） | `test/*.mjs` |
 | **示例模型 ID** | `example-model` | 你的模型 ID | `src/models/models.ts`；`package.json` 默认值；`src/platform/platformConfig.ts` → `FALLBACK_TEST_MODEL_ID`；`test/*.mjs` |

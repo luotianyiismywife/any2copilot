@@ -18,6 +18,9 @@
 
 ### 变更
 
+- **精简命令面板**：移除 5 个与设置或其他命令重复的命令——`setApiKey`（旧版单 key 流程）、`getApiKey`（官网链接，改由欢迎页提供）、`setModelPreset`（改用 `modelPreset` 设置）、`setVisionProxyModel`（改用 `visionProxyModel` 设置）、`checkUsage`（命令面板隐藏，仅保留状态栏点击）。provider 的 `managementCommand` 重定向到 `manageApiKeys`（齿轮图标）。
+- 删除 `src/commands/modelPresetCommand.ts` / `src/commands/visionProxyCommand.ts` 与已无引用的 `getVisionSupportedModelIds` / `PLATFORM_API_KEY_URL`。
+- 清理上述命令遗留的死 l10n 键；静默启动自动拉取不再弹通知（移除 `Cloud sync: pulled {0} keys from Gist on startup`）。
 - `@types/vscode` 精确 pin 到 `1.116.0`（与 `engines.vscode` 最低版本一致）。
 - 升级 `@types/node` 22 → 26、`eslint` 9 → 10、`@eslint/js` 9 → 10、`typescript-eslint` 8.60 → 8.71。
 - 修复 eslint 10 新规则报出的 5 处问题（`no-useless-assignment` × 2、`preserve-caught-error` × 3）。

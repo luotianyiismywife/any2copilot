@@ -22,8 +22,6 @@ export const API_BASE_URL = "https://api.example.com/v1/";
 
 // ── 平台外围地址 ────────────────────────────────────────────────────────
 
-/** 获取 API Key 页面（"获取密钥"命令跳转目标） */
-export const PLATFORM_API_KEY_URL = "https://example.com/api-platform/api-key";
 /** 用户中心账号信息端点（套餐用量 / 余额查询，Bearer 登录 PASETO token） */
 export const PLATFORM_USER_SELF_URL = "https://platform.example.com/api/user/self";
 

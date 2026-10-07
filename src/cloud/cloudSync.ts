@@ -438,10 +438,6 @@ async function pullFromCloudInner(
                 vscode.window.showInformationMessage(
                     l10nFormat("Pulled {0} keys from cloud Gist", String(merged.length)),
                 );
-            } else {
-                vscode.window.showInformationMessage(
-                    l10nFormat("Cloud sync: pulled {0} keys from Gist on startup", String(merged.length)),
-                );
             }
             return true;
         } finally {
