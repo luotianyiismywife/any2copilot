@@ -81,6 +81,7 @@ npm run audit     # 7 项审计
 | **账号信息字段映射** | `src/balance/accountInfo.ts` → `queryAccountInfo()` | 按你平台的响应结构改写解析 |
 | **积分换算比例** | `src/balance/accountInfo.ts` → `POINTS_PER_CNY` | 实测校正（各平台不同） |
 | **错误 patterns** | `src/keys/config.ts` → `getRotationErrorPatterns()` | 按你平台的错误文案调整（默认含中英文"余额不足"等通用短语） |
+| **封号 patterns** | `package.json` → `any2copilot.apiKeyBannedErrorPatterns` 默认值 | 默认值为示例（针对某平台的计费冻结响应），按你平台的封号文案替换；无封号概念时置空数组 `[]` |
 | **换 key / 重试状态码** | `src/keys/config.ts` | 按你平台的错误语义调整（见 [`retry-and-key-rotation.md`](retry-and-key-rotation.md)） |
 | **欢迎页文案** | `resources/walkthrough/*.md` | 平台名与说明 |
 | **本地化文案** | `src/core/localize.ts` + `package.nls*.json` | 平台专属文案 |
