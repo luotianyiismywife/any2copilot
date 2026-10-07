@@ -6,6 +6,7 @@ import {
     getRotationIndex,
     getStoreCache,
     getTransientExhaustedMap,
+    notifyApiKeyStoreChanged,
     setRotationIndex,
     setStoreCache,
 } from "./state";
@@ -90,6 +91,12 @@ export async function saveApiKeyStore(secrets: vscode.SecretStorage, store: ApiK
         // ignore legacy key deletion failures (idempotent retry on next save)
     }
     setStoreCache(store);
+    notifyStoreWrite();
+}
+
+/** 通知 store 变更监听器（触发自动云同步 push）。 */
+function notifyStoreWrite(): void {
+    notifyApiKeyStoreChanged();
 }
 
 /** 使内存缓存失效（外部修改 SecretStorage 时调用） */

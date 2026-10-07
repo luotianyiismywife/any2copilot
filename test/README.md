@@ -19,13 +19,17 @@
 | `test-anthropic-tool-result-merge.mjs` | 离线 | Anthropic 连续工具结果合并（3 个并行 tool_use 结果合并为单条 user 消息） |
 | `test-batch-import.mjs` | 离线 | **批量导入解析器**（14 项断言）：`key---cookie---备注;` 格式、空字段、备注含分隔符、容错 |
 | `test-banned-rotation.mjs` | 离线 | **封号错误检测**（9 项断言）：`apiKeyBannedErrorPatterns` 命中判定、`reason="banned"`、持久化失效、key 跳过、`REASON_TEXT["banned"]`、自定义/空 patterns |
+| `test-cloud-sync-auto-push.mjs` | 离线 | **云同步 payload 去重**（16 项断言）：`syncPayloadHasChanged` 的空值/版本/长度/逐字段（value/cookie/label）/顺序分支，`undefined` 与 `""` 等价、`updatedAt` 不参与比较 |
+| `test-cloud-sync-flow.mjs` | 离线 | **云同步 push/pull 集成**（22 项断言）：mock fetch + mock vscode 驱动真实 `pushToCloud`/`pullFromCloud`——push 新建/PATCH/无变更短路/空 store 警告、**push 记录服务端 `updated_at`**、pull 合并（cookie/label 覆盖 + 可用性保留 + 追加新 key）、静默跳过、缓存 gist 失效回退 |
+| `test-cloud-sync-e2e.mjs` | 联网 | **云同步真实端到端**（16 项断言，`npm run test:e2e`）：真实 GitHub Gist API 驱动生产代码，验证请求体格式/响应结构/`updated_at`/内容往返。创建**专用测试 Gist**（描述带随机后缀）并在 finally 删除，**绝不触碰用户真实同步 Gist**；凭据从 `GITHUB_TOKEN`/`GH_TOKEN` 或 `gh auth token` 读取，无凭据时 SKIP 退出 0 |
 | `test-apply-token.mjs` | 联网 | public_key 换发短期 token（平台专属，移植时按需替换） |
 | `test-model-diff.mjs` | 联网 | 内置清单 vs `/v1/models` 差异（内置清单从编译产物读取，不会脱节） |
 | `test-responses-recheck.mjs` | 联网 | Responses 协议复检（工具格式扁平化 / function_call 块 / tool_choice 行为） |
 | `test-vision-check.mjs` | 联网 | 视觉能力检查（生成合法 PNG 测图片输入） |
 
 > **离线测试**（`test-plan-usage` / `test-transient-retry` / `test-keys` / `test-rotation` /
-> `test-banned-rotation` / `test-vision-history` / `test-anthropic-tool-result-merge` / `test-batch-import`）与平台无关，移植后应保持全绿。
+> `test-banned-rotation` / `test-vision-history` / `test-anthropic-tool-result-merge` / `test-batch-import` /
+> `test-cloud-sync-auto-push` / `test-cloud-sync-flow`）与平台无关，移植后应保持全绿。
 > **联网测试**含平台专属假设（模型 ID、端点、错误语义），移植时需按新平台调整。
 
 ## 运行

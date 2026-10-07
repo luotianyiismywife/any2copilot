@@ -25,7 +25,7 @@ stripping out everything platform-specific and keeping the reusable skeleton.
 | **Chat model provider** | Implements `LanguageModelChatProvider`, registers as a vendor in the model picker |
 | **Three API protocols** | OpenAI-compatible (`/chat/completions`), Anthropic (`/v1/messages`), Responses (`/v1/responses`) — switchable per model or forced via a setting |
 | **Multi API key management** | Encrypted SecretStorage store, three modes (`sticky` / `rotation` / `single`), passive failure detection + rotation, transient whole-round retry, manual availability check |
-| **Cloud sync (GitHub Gist)** | Sync key/cookie/label triples across machines via VS Code's built-in GitHub sign-in (no PAT) |
+| **Cloud sync (GitHub Gist)** | Sync key/cookie/label triples across machines via VS Code's built-in GitHub sign-in (no PAT). Manual push/pull, startup auto-pull, and optional debounced auto-push after key-management actions |
 | **Auto model discovery** | Fetch the live model list from `/v1/models`, hide unavailable models, discover new ones |
 | **Streaming + thinking** | SSE streaming, reasoning/thinking parts, XML ` thinking` block parsing |
 | **Tool calling** | VS Code `LanguageModelToolCallPart` support |
@@ -66,7 +66,7 @@ src/
 ├── commands/                    ← 命令与 QuickPick UI
 ├── core/                        ← 日志 / l10n / 工具函数
 ├── ui/statusBar.ts              ← 状态栏（套餐用量 + Token 指示器）
-├── cloud/cloudSync.ts           ← GitHub Gist 云同步
+├── cloud/                       ← GitHub Gist 云同步（cloudSync.ts + syncPayload.ts）
 ├── gitCommit/                   ← Git 提交消息生成
 ├── tokenizer/                   ← o200k_base token 计数
 └── vision/                      ← ask_image 图片代理
@@ -107,7 +107,7 @@ AGPL-3.0 License. This scaffold builds upon the architecture of
 | **Chat 模型提供商** | 实现 `LanguageModelChatProvider`，在模型选择器中注册为厂商 |
 | **三协议支持** | OpenAI 兼容（`/chat/completions`）、Anthropic（`/v1/messages`）、Responses（`/v1/responses`）——可按模型切换或经设置强制 |
 | **多 API Key 管理** | SecretStorage 加密存储，三种模式（`sticky` / `rotation` / `single`），被动失效检测 + 轮换、瞬态整轮重试、手动可用性检测 |
-| **云同步（GitHub Gist）** | 经 VS Code 内置 GitHub 登录（无需 PAT）跨机器同步 key/cookie/备注 三元组 |
+| **云同步（GitHub Gist）** | 经 VS Code 内置 GitHub 登录（无需 PAT）跨机器同步 key/cookie/备注 三元组。支持手动推送/拉取、启动自动拉取，以及可选的 key 管理操作后去抖自动推送 |
 | **自动模型发现** | 从 `/v1/models` 拉取实时模型列表，隐藏不可用模型、发现新模型 |
 | **流式 + 思考** | SSE 流式、推理/思考内容、XML ` thinking` 块解析 |
 | **工具调用** | 支持 VS Code `LanguageModelToolCallPart` |
@@ -145,7 +145,7 @@ src/
 ├── commands/                    ← 命令与 QuickPick UI
 ├── core/                        ← 日志 / l10n / 工具函数
 ├── ui/statusBar.ts              ← 状态栏（套餐用量 + Token 指示器）
-├── cloud/cloudSync.ts           ← GitHub Gist 云同步
+├── cloud/                       ← GitHub Gist 云同步（cloudSync.ts + syncPayload.ts）
 ├── gitCommit/                   ← Git 提交消息生成
 ├── tokenizer/                   ← o200k_base token 计数
 └── vision/                      ← ask_image 图片代理

@@ -2,6 +2,8 @@ import * as vscode from "vscode";
 import { logger } from "../core/logger";
 import { l10n, l10nFormat } from "../core/localize";
 import { getApiKeyStore, saveApiKeyStore, invalidateApiKeyStoreCache, type ApiKeyEntry } from "../keys/keyManager";
+import { onApiKeyStoreChanged } from "../keys/state";
+import { syncPayloadHasChanged, type SyncPayload, type SyncedKeyEntry } from "./syncPayload";
 
 /**
  * 云同步（GitHub Gist）：
@@ -12,6 +14,8 @@ import { getApiKeyStore, saveApiKeyStore, invalidateApiKeyStoreCache, type ApiKe
  * - 拉取（any2copilot.syncPull）：Gist → 本地 store（手动触发）
  * - 启动自动拉取（any2copilot.cloudSyncAutoPull，默认开启）：静默检查云端
  *   updatedAt 是否比本地上次同步时间新，是则拉取覆盖本地并弹窗提示。
+ * - 自动推送（any2copilot.cloudSyncAutoPush，默认关闭）：key 管理操作后
+ *   去抖静默推送本地变更到 Gist（本地与云端一致时短路，不写 Gist）。
  *
  * Gist 定位：优先使用 globalState 缓存的 gist id；缺失时按 description
  * 标记（GIST_DESCRIPTION）遍历用户 Gist 列表查找；均无则创建新 Gist。
@@ -24,25 +28,16 @@ const GIST_API_BASE = "https://api.github.com/gists";
 
 const GLOBAL_STATE_GIST_ID = "any2copilot.cloudSyncGistId";
 const GLOBAL_STATE_LAST_SYNC_AT = "any2copilot.lastCloudSyncAt";
+const GLOBAL_STATE_LOCK_UNTIL = "any2copilot.cloudSyncLockUntil";
 
 // push/pull 互斥：两者都是"读 store → 网络等待 → 写 store"，并发重叠时
 // pull 会用旧 store 快照覆盖 push 的结果（last-writer-wins），push 期间
 // 新增的本地 key 可能被 pull 的合并删掉。模块级互斥标志防止重叠。
 let syncInFlight = false;
-
-/** Gist 中存储的单个 key 条目（仅同步 value/cookie/label，可用性状态为本地数据不同步）。 */
-interface SyncedKeyEntry {
-    value: string;
-    cookie?: string;
-    label?: string;
-}
-
-/** Gist 文件负载结构。 */
-interface SyncPayload {
-    version: 1;
-    updatedAt: string;
-    keys: SyncedKeyEntry[];
-}
+// 自动推送：pull 触发的本地写入需抑制自动推送（否则形成 pull→push 回环）。
+let suppressAutoPush = false;
+let pendingAutoPushTimer: NodeJS.Timeout | undefined;
+const AUTO_PUSH_DEBOUNCE_MS = 2500;
 
 /**
  * 获取 VS Code 内置 GitHub 登录会话。
@@ -133,6 +128,22 @@ async function fetchSyncPayload(
     return undefined;
 }
 
+/**
+ * 从 Gist API 响应中读取服务端 `updated_at`。
+ *
+ * 用于记录 `lastCloudSyncAt`：pull 侧（`fetchSyncPayload`）用服务端时间覆盖
+ * `updatedAt`，push 侧若记录客户端时间，两者会差几秒，导致 push 后下一次启动
+ * 必然多拉一次（拉到无变化后自愈）。统一用服务端时间消除该偏差。
+ */
+async function readGistUpdatedAt(resp: Response): Promise<string | undefined> {
+    try {
+        const gist = (await resp.json()) as { updated_at?: string };
+        return gist.updated_at;
+    } catch {
+        return undefined;
+    }
+}
+
 /** 规范化同步条目：过滤空值，cookie/label 去空白。 */
 function normalizeEntries(keys: SyncedKeyEntry[]): SyncedKeyEntry[] {
     return keys
@@ -155,40 +166,89 @@ function buildPayload(keys: ApiKeyEntry[]): SyncPayload {
 
 /**
  * 推送本地 key/cookie/备注 到云端 Gist（any2copilot.syncPush 命令）。
- * 未登录 GitHub 时弹出登录界面。成功后记录 globalState 同步时间。
+ * 未登录 GitHub 时（非 silent 模式）弹出登录界面。成功后记录 globalState 同步时间。
+ *
+ * @param silent true 时静默推送（自动推送用）：不弹登录界面、不弹提示、失败仅记日志。
  */
-export async function pushToCloud(context: vscode.ExtensionContext): Promise<void> {
+export async function pushToCloud(context: vscode.ExtensionContext, silent = false): Promise<void> {
     if (syncInFlight) {
-        vscode.window.showWarningMessage(l10n("Cloud sync is already in progress"));
+        if (!silent) {
+            vscode.window.showWarningMessage(l10n("Cloud sync is already in progress"));
+        }
         return;
     }
-    const session = await getGitHubSession(true);
+    // 跨窗口锁：避免两个窗口同时写 Gist（另一个窗口刚推送过则跳过）
+    const lockUntil = context.globalState.get<number>(GLOBAL_STATE_LOCK_UNTIL, 0) ?? 0;
+    if (Date.now() < lockUntil) {
+        logger.info("cloudSync.push.locked", { lockUntil, silent });
+        return;
+    }
+
+    const session = await getGitHubSession(!silent);
     if (!session) {
         return; // 用户取消登录
     }
     syncInFlight = true;
     try {
-        await pushToCloudInner(context, session);
+        await pushToCloudInner(context, session, silent);
     } finally {
         syncInFlight = false;
     }
 }
 
-async function pushToCloudInner(context: vscode.ExtensionContext, session: vscode.AuthenticationSession): Promise<void> {
+async function pushToCloudInner(
+    context: vscode.ExtensionContext,
+    session: vscode.AuthenticationSession,
+    silent: boolean,
+): Promise<void> {
     const store = await getApiKeyStore(context.secrets);
     if (store.keys.length === 0) {
-        vscode.window.showWarningMessage(l10n("No API keys configured"));
+        if (!silent) {
+            vscode.window.showWarningMessage(l10n("No API keys configured"));
+        }
         return;
     }
+
     const payload = buildPayload(store.keys);
+    let gistId = context.globalState.get<string>(GLOBAL_STATE_GIST_ID);
+    let remotePayload: SyncPayload | undefined;
+
+    // 无变更短路：先读取云端负载，本地与云端一致则不写 Gist、不更新时间戳，
+    // 避免自动推送在无实际变更时反复写 Gist。
+    if (gistId) {
+        try {
+            remotePayload = await fetchSyncPayload(session, gistId);
+        } catch {
+            gistId = undefined;
+            remotePayload = undefined;
+        }
+    }
+    if (!gistId) {
+        const found = await findSyncGist(session);
+        if (found) {
+            gistId = found.id;
+            await context.globalState.update(GLOBAL_STATE_GIST_ID, gistId);
+            remotePayload = await fetchSyncPayload(session, gistId).catch(() => undefined);
+        }
+    }
+    if (!syncPayloadHasChanged(payload, remotePayload)) {
+        logger.info("cloudSync.push.noChange", { count: payload.keys.length });
+        return;
+    }
+
     const fileBody = { filename: GIST_FILE_NAME, content: JSON.stringify(payload, null, 2) };
+    const lockUntil = Date.now() + 30_000;
+    await context.globalState.update(GLOBAL_STATE_LOCK_UNTIL, lockUntil);
 
     try {
-        await vscode.window.withProgress(
-            { location: vscode.ProgressLocation.Notification, title: l10n("Pushing keys to cloud...") },
-            async () => {
+        const serverUpdatedAt = await vscode.window.withProgress(
+            {
+                location: vscode.ProgressLocation.Notification,
+                title: silent ? "" : l10n("Pushing keys to cloud..."),
+            },
+            async (): Promise<string | undefined> => {
+                let updatedAt: string | undefined;
                 // 优先使用缓存的 gist id，失效（404）时回退查找/创建
-                let gistId = context.globalState.get<string>(GLOBAL_STATE_GIST_ID);
                 if (gistId) {
                     try {
                         const resp = await gistFetch(session, `${GIST_API_BASE}/${gistId}`, {
@@ -196,7 +256,7 @@ async function pushToCloudInner(context: vscode.ExtensionContext, session: vscod
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ files: { [GIST_FILE_NAME]: fileBody } }),
                         });
-                        void resp;
+                        updatedAt = await readGistUpdatedAt(resp);
                     } catch {
                         gistId = undefined; // 缓存的 gist 已不存在，回退
                     }
@@ -205,11 +265,12 @@ async function pushToCloudInner(context: vscode.ExtensionContext, session: vscod
                     const found = await findSyncGist(session);
                     if (found) {
                         gistId = found.id;
-                        await gistFetch(session, `${GIST_API_BASE}/${gistId}`, {
+                        const resp = await gistFetch(session, `${GIST_API_BASE}/${gistId}`, {
                             method: "PATCH",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ files: { [GIST_FILE_NAME]: fileBody } }),
                         });
+                        updatedAt = await readGistUpdatedAt(resp);
                     } else {
                         const resp = await gistFetch(session, GIST_API_BASE, {
                             method: "POST",
@@ -220,28 +281,38 @@ async function pushToCloudInner(context: vscode.ExtensionContext, session: vscod
                                 files: { [GIST_FILE_NAME]: fileBody },
                             }),
                         });
-                        const created = (await resp.json()) as { id?: string };
+                        const created = (await resp.json()) as { id?: string; updated_at?: string };
                         gistId = created.id;
                         if (!gistId) {
                             // POST 响应解析不出 id：什么都没推送，抛错走 catch
                             // 分支（不更新时间戳、不报成功），避免"假成功"。
                             throw new Error("Gist creation response missing id");
                         }
+                        updatedAt = created.updated_at;
                     }
                 }
                 if (gistId) {
                     await context.globalState.update(GLOBAL_STATE_GIST_ID, gistId);
                 }
+                return updatedAt;
             },
         );
-        await context.globalState.update(GLOBAL_STATE_LAST_SYNC_AT, payload.updatedAt);
-        logger.info("cloudSync.push", { count: payload.keys.length });
-        vscode.window.showInformationMessage(
-            l10nFormat("Pushed {0} keys to cloud Gist", String(payload.keys.length)),
-        );
+
+        // 记录服务端时间戳（与 pull 侧口径一致）；响应缺失时回退到本地时间。
+        await context.globalState.update(GLOBAL_STATE_LAST_SYNC_AT, serverUpdatedAt ?? payload.updatedAt);
+        logger.info("cloudSync.push", { count: payload.keys.length, silent });
+        if (!silent) {
+            vscode.window.showInformationMessage(
+                l10nFormat("Pushed {0} keys to cloud Gist", String(payload.keys.length)),
+            );
+        }
     } catch (err) {
-        logger.error("cloudSync.push", { error: String(err) });
-        vscode.window.showErrorMessage(l10nFormat("Failed to push to cloud: {0}", String(err)));
+        logger.error("cloudSync.push", { error: String(err), silent });
+        if (!silent) {
+            vscode.window.showErrorMessage(l10nFormat("Failed to push to cloud: {0}", String(err)));
+        }
+    } finally {
+        await context.globalState.update(GLOBAL_STATE_LOCK_UNTIL, 0);
     }
 }
 
@@ -319,58 +390,118 @@ async function pullFromCloudInner(
         }
 
         const store = await getApiKeyStore(context.secrets);
-        const localByKey = new Map(store.keys.map((k) => [k.value, k]));
-        const cloudEntries = normalizeEntries(payload.keys);
-        const merged: ApiKeyEntry[] = cloudEntries.map((entry) => {
-            const local = localByKey.get(entry.value);
-            return {
-                value: entry.value,
-                cookie: entry.cookie,
-                label: entry.label,
-                // 可用性状态为本地数据：按 key 值保留本地检测结果
-                available: local?.available ?? null,
-                lastCheckedAt: local?.lastCheckedAt,
-            };
-        });
-        const changed =
-            merged.length !== store.keys.length ||
-            merged.some((m, i) => {
-                const old = store.keys[i];
-                return !old || old.value !== m.value || old.cookie !== m.cookie || old.label !== m.label;
+        // pull 触发的本地写入需抑制自动推送，否则形成 pull→push 回环。
+        suppressAutoPush = true;
+        try {
+            const localByKey = new Map(store.keys.map((k) => [k.value, k]));
+            const cloudEntries = normalizeEntries(payload.keys);
+            const merged: ApiKeyEntry[] = cloudEntries.map((entry) => {
+                const local = localByKey.get(entry.value);
+                return {
+                    value: entry.value,
+                    cookie: entry.cookie,
+                    label: entry.label,
+                    // 可用性状态为本地数据：按 key 值保留本地检测结果
+                    available: local?.available ?? null,
+                    lastCheckedAt: local?.lastCheckedAt,
+                };
             });
-        if (!changed) {
-            await context.globalState.update(GLOBAL_STATE_LAST_SYNC_AT, payload.updatedAt);
-            return false;
-        }
+            const changed =
+                merged.length !== store.keys.length ||
+                merged.some((m, i) => {
+                    const old = store.keys[i];
+                    return (
+                        !old ||
+                        old.value !== m.value ||
+                        (old.cookie ?? "") !== (m.cookie ?? "") ||
+                        (old.label ?? "") !== (m.label ?? "")
+                    );
+                });
+            if (!changed) {
+                await context.globalState.update(GLOBAL_STATE_LAST_SYNC_AT, payload.updatedAt);
+                return false;
+            }
 
-        const activeValue = store.keys[store.activeIndex]?.value;
-        const newStore = {
-            keys: merged,
-            activeIndex: Math.max(
-                0,
-                merged.findIndex((k) => k.value === activeValue),
-            ),
-        };
-        await saveApiKeyStore(context.secrets, newStore);
-        invalidateApiKeyStoreCache();
-        await context.globalState.update(GLOBAL_STATE_LAST_SYNC_AT, payload.updatedAt);
-        logger.info("cloudSync.pull", { count: merged.length });
-        if (!silent) {
-            vscode.window.showInformationMessage(
-                l10nFormat("Pulled {0} keys from cloud Gist", String(merged.length)),
-            );
-        } else {
-            vscode.window.showInformationMessage(
-                l10nFormat("Cloud sync: pulled {0} keys from Gist on startup", String(merged.length)),
-            );
+            const activeValue = store.keys[store.activeIndex]?.value;
+            const newStore = {
+                keys: merged,
+                activeIndex: Math.max(
+                    0,
+                    merged.findIndex((k) => k.value === activeValue),
+                ),
+            };
+            await saveApiKeyStore(context.secrets, newStore);
+            invalidateApiKeyStoreCache();
+            await context.globalState.update(GLOBAL_STATE_LAST_SYNC_AT, payload.updatedAt);
+            logger.info("cloudSync.pull", { count: merged.length });
+            if (!silent) {
+                vscode.window.showInformationMessage(
+                    l10nFormat("Pulled {0} keys from cloud Gist", String(merged.length)),
+                );
+            } else {
+                vscode.window.showInformationMessage(
+                    l10nFormat("Cloud sync: pulled {0} keys from Gist on startup", String(merged.length)),
+                );
+            }
+            return true;
+        } finally {
+            suppressAutoPush = false;
         }
-        return true;
     } catch (err) {
         logger.error("cloudSync.pull", { error: String(err) });
         if (!silent) {
             vscode.window.showErrorMessage(l10nFormat("Failed to pull from cloud: {0}", String(err)));
         }
         return false;
+    }
+}
+
+/**
+ * 注册 API Key store 变更监听：key 管理操作写入 SecretStorage 后，去抖
+ * （2.5s）静默推送本地变更到云端 Gist。
+ *
+ * - 跳过 `suppressAutoPush`（pull 触发的本地写入）以避免 pull→push 回环。
+ * - 读取 `any2copilot.cloudSyncAutoPush` 配置（默认关闭）；关闭时直接返回。
+ * - 推送失败仅记日志，不弹窗（silent 模式）。
+ */
+export function registerCloudSyncAutoPush(context: vscode.ExtensionContext): void {
+    const onChanged = () => {
+        if (suppressAutoPush) {
+            return;
+        }
+
+        if (pendingAutoPushTimer) {
+            clearTimeout(pendingAutoPushTimer);
+        }
+
+        const enabled = vscode.workspace.getConfiguration().get<boolean>("any2copilot.cloudSyncAutoPush", false);
+        if (!enabled) {
+            return;
+        }
+
+        pendingAutoPushTimer = setTimeout(() => {
+            pendingAutoPushTimer = undefined;
+            void pushToCloud(context, true);
+        }, AUTO_PUSH_DEBOUNCE_MS);
+    };
+
+    const unsubscribe = onApiKeyStoreChanged(onChanged);
+    context.subscriptions.push({ dispose: unsubscribe });
+    context.subscriptions.push({
+        dispose: () => {
+            if (pendingAutoPushTimer) {
+                clearTimeout(pendingAutoPushTimer);
+                pendingAutoPushTimer = undefined;
+            }
+        },
+    });
+}
+
+/** 清理未执行的自动推送定时器（扩展停用前调用）。 */
+export function flushPendingAutoPush(): void {
+    if (pendingAutoPushTimer) {
+        clearTimeout(pendingAutoPushTimer);
+        pendingAutoPushTimer = undefined;
     }
 }
 

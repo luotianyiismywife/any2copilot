@@ -5,7 +5,7 @@ import { logger } from "./core/logger";
 import { VersionManager } from "./core/versionManager";
 import { TokenizerManager } from "./tokenizer/tokenizerManager";
 import { syncModelsOnStartup } from "./models/modelSync";
-import { autoPullOnStartup } from "./cloud/cloudSync";
+import { autoPullOnStartup, flushPendingAutoPush, registerCloudSyncAutoPush } from "./cloud/cloudSync";
 import { registerCommands } from "./commands/registerCommands";
 
 /**
@@ -51,10 +51,19 @@ export function activate(context: vscode.ExtensionContext) {
     // Fire-and-forget: never blocks activation, never prompts for sign-in.
     autoPullOnStartup(context);
 
+    // Cloud sync auto-push — sends local key changes to the cloud Gist after
+    // human-driven key-management actions, with debounce and silent failure.
+    registerCloudSyncAutoPush(context);
+
     // Dispose logger on deactivate
     context.subscriptions.push({
-        dispose: () => logger.dispose(),
+        dispose: () => {
+            flushPendingAutoPush();
+            logger.dispose();
+        },
     });
 }
 
-export function deactivate() { }
+export function deactivate() {
+    flushPendingAutoPush();
+}

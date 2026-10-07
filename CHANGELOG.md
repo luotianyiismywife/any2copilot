@@ -10,7 +10,10 @@
 
 ### 新增
 
-- **离线测试**：`test-keys.mjs`（Key 选择与状态，18 项断言）、`test-rotation.mjs`（轮换循环，7 项断言）、`test-banned-rotation.mjs`（封号错误检测，9 项断言，直接导入编译产物）。
+- **云同步自动推送**：新增设置 `cloudSyncAutoPush`（默认关闭）——key 管理操作后去抖 2.5s 静默推送本地变更到云端 Gist；本地与云端一致时短路不写 Gist。新增纯函数模块 `src/cloud/syncPayload.ts`（`syncPayloadHasChanged`）供去重逻辑与离线测试共用。
+- **云同步时间戳口径统一**：push 记录服务端 `updated_at`（与 pull 侧一致），消除客户端时钟偏差导致的 push 后必然多拉一次。新增跨窗口锁 `cloudSyncLockUntil` 防止两窗口同时写 Gist。
+- **离线测试**：`test-keys.mjs`（Key 选择与状态，18 项断言）、`test-rotation.mjs`（轮换循环，7 项断言）、`test-banned-rotation.mjs`（封号错误检测，9 项断言，直接导入编译产物）、`test-cloud-sync-auto-push.mjs`（payload 去重，16 项断言）、`test-cloud-sync-flow.mjs`（push/pull 集成，22 项断言）。
+- **联网测试**：`test-cloud-sync-e2e.mjs`（真实 GitHub Gist 端到端，16 项断言，`npm run test:e2e`；无凭据时 SKIP 退出 0）。
 - **封号 patterns 可配置**：新增设置 `apiKeyBannedErrorPatterns`（默认 `["计费账户已被冻结", "\"code\":\"billing\"", "ref_code:400901"]`），命中即判定为封号（`reason="banned"`，持久化失效），与普通换 key 区分。
 
 ### 变更

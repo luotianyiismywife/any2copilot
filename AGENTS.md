@@ -38,7 +38,7 @@
 |------|------|
 | **Chat 模型提供商** | 实现 `LanguageModelChatProvider` 接口，向 VS Code 注册为厂商（vendor 由 `package.json` 声明，见移植指南 §1.2） |
 | **多 API Key 轮询** | 支持多个 API Key（SecretStorage 加密存储 `<prefix>.apiKeys`），三种模式：`sticky`（默认，固定使用一个 key，仅失效时切下一个并钉住——前缀缓存命中率最高，切换后不自动切回）/ `rotation`（轮询使用、跳过不可用 key）/ `single`（仅用当前 key；`<prefix>.singleKeyFallback`（默认 `switch`）下**仅在余额不足（402）时**自动切换到下一个可用 key 并经 `setActiveKeyByValue` 设为当前使用 + 右下角弹窗提示——401 无效 Key / 429 限流 / 503 繁忙等其他错误不切换、走 single 专属报错文案；`error` 下任何错误都直接报错不切换）。**被动检测**：按请求错误（402 余额不足 / 401 无效 Key / 429 限流 / 503 服务端繁忙，状态码与文本 patterns 均可配置）判定 key 失效并切换——**402/401 持久化 `available=false`（确定性），429/503 仅内存冷却不持久化（瞬态，冷却到期自动恢复）**。**手动检测**：`<prefix>.manageApiKeys` 命令 QuickPick 管理（增删/设为当前/绑定 cookie/重置失效/检测可用性——最小真实聊天请求 `say ok`，实测余额不足时 402 拦截不耗 token）。**UI 增强**：表单式批量导入（三元组 key/cookie/备注）、检测二级界面、编辑 API Key（三字段 value/cookie/label，冲突校验）、**轮询模式下隐藏"设为当前使用"**、批量导入时已存在 key 自动更新 cookie 不重复添加、**所有 key 管理界面均显示账号余额**（登录 token 经 `getAccountInfoCached` TTL 缓存查询账号信息端点，余额按**账号**粒度、所有 key 共享）。**全部 key 用尽时**：轮换循环跟踪每个 key 的失败原因，报错列出脱敏 key + 原因（如 `sk_****abcd: 服务端繁忙 (503)`），并区分"瞬态失败请稍后重试"（429/503）与"确定性失败请检测"（402/401）。**瞬态自动重试**：全部 key 均因瞬态错误（默认 429/500/503，状态码可配置 `<prefix>.transientRetryStatusCodes`，与触发轮换的状态码解耦）失败时，按 `<prefix>.transientRetryTimes`（默认 3）自动重试整轮——指数退避等待（2s/4s/8s，上限 8s）且**重试前清空瞬态冷却**，重试次数用尽后才报错。**平台侧错误不换 key**：500 Internal Server Error 是平台问题而非 key 问题——它命中瞬态重试但**不**命中轮换状态码，因此**不标记 key、不换 key**，仅退避后重试同一个 key。旧版单 key `<prefix>.apiKey` 自动迁移。实现见 `src/keys/` |
-| **云同步（GitHub Gist）** | key/cookie/备注 三元组跨机器云同步：使用 VS Code 内置的 GitHub 登录（`vscode.authentication.getSession("github", ["gist"])`，无需 PAT）获取 token，将三元组存储到一个**私密 Gist**（`public: false`）。**手动推送**（`<prefix>.syncPush`）/ **手动拉取**（`<prefix>.syncPull`）/ **启动自动拉取**（`<prefix>.cloudSyncAutoPull`，默认开启，未登录时静默跳过）。**合并策略（拉取）**：云端为源——按 key 值对齐，云端条目覆盖本地 cookie/label；**可用性状态为本地数据不同步**。实现集中在 `src/cloud/cloudSync.ts` |
+| **云同步（GitHub Gist）** | key/cookie/备注 三元组跨机器云同步：使用 VS Code 内置的 GitHub 登录（`vscode.authentication.getSession("github", ["gist"])`，无需 PAT）获取 token，将三元组存储到一个**私密 Gist**（`public: false`）。**手动推送**（`<prefix>.syncPush`）/ **手动拉取**（`<prefix>.syncPull`）/ **启动自动拉取**（`<prefix>.cloudSyncAutoPull`，默认开启，未登录时静默跳过）/ **自动推送**（`<prefix>.cloudSyncAutoPush`，默认关闭，key 管理操作后去抖 2.5s 静默推送，本地与云端一致时短路不写 Gist）。**合并策略（拉取）**：云端为源——按 key 值对齐，云端条目覆盖本地 cookie/label；**可用性状态为本地数据不同步**。**时间戳口径统一**：push 记录服务端 `updated_at`（与 pull 侧一致），消除客户端时钟偏差导致的 push 后必然多拉一次。**跨窗口锁**：`globalState` 的 `<prefix>.cloudSyncLockUntil` 防止两窗口同时写 Gist。实现集中在 `src/cloud/cloudSync.ts` + `src/cloud/syncPayload.ts` |
 | **多模型支持** | 内置模型定义（`src/models/models.ts` 的 `BUILT_IN_MODELS`，**移植时替换为你平台的模型**），统一通过推理强度选择器切换思考模式。支持自动模型发现：开启后从 API 获取模型列表，自动过滤不可用模型并发现新增模型 |
 | **自动模型发现** | 通过 `<prefix>.enableAutoModelDiscovery` 配置（默认开启）。启动时从 `/v1/models` 获取当前可用模型 ID 列表及能力标记，过滤内置模型列表（不可用模型自动隐藏）。新增模型元数据以 **`/v1/models` 完整元数据为主源**，models.dev 仅提供友好名称与回退规格；两源均未知输出上限时不发送 `max_completion_tokens`（交由服务端默认值）。`thinkingMode` 从 `supports_reasoning` 推断。API 不可用时静默回退到全量内置列表。内存缓存（5 分钟 TTL）。**按 API 模式过滤**：`anthropic` 仅显示 `supports_anthropic=true` 的模型，`responses` 仅显示 `supports_responses=true` 的模型。**动态刷新**：通过 `onDidChangeLanguageModelChatInformation` 事件（VS Code 1.125+），切换 `apiMode` / `enableAutoModelDiscovery` 设置时自动刷新选择器，**无需 reload 窗口** |
 | **启动模型同步** | 通过 `<prefix>.syncModelsOnStartup` 配置（默认开启）。每次 VS Code 打开时自动检查 API 是否有新模型，**每日最多同步一次**（`globalState` 记录上次同步日期）。同步结果以**一行日志**输出到输出通道，**不写任何文件** |
@@ -150,7 +150,8 @@ activate(context)
   │       abortGitCommitMessage / setModelPreset / syncPush / syncPull / checkUsage）
   ├── syncModelsOnStartup(context)          ← 启动模型同步（每日最多一次）
   ├── autoPullOnStartup(context)            ← 启动云同步自动拉取（静默）
-  └── 注册 dispose 清理
+  ├── registerCloudSyncAutoPush(context)    ← 注册 key store 变更监听（去抖自动推送）
+  └── 注册 dispose 清理（flushPendingAutoPush + logger.dispose）
 ```
 
 > `initStatusBar(context, getLoginToken)` 同时启动**套餐用量后台轮询**（`startUsagePolling`），
@@ -381,7 +382,8 @@ src/
 ├── ui/
 │   └── statusBar.ts                      # 状态栏管理（套餐用量 + Token 指示器）
 ├── cloud/
-│   └── cloudSync.ts                      # 云同步（GitHub Gist）
+│   ├── cloudSync.ts                      # 云同步（GitHub Gist）：推送/拉取/启动自动拉取/自动推送
+│   └── syncPayload.ts                    # 纯函数：Gist payload 对比（无 VS Code 运行时依赖）
 ├── gitCommit/
 │   ├── commitMessageGenerator.ts         # Git 提交消息生成
 │   └── gitUtils.ts                       # Git 工具函数
@@ -476,7 +478,8 @@ test/                                     # 测试脚本（运行前需 npm run 
 | `core/utils.ts` | 工具函数（重试、角色映射、工具转换等） |
 | `core/versionManager.ts` | 扩展版本信息 |
 | `ui/statusBar.ts` | 状态栏创建、更新、套餐用量渲染、后台轮询 |
-| `cloud/cloudSync.ts` | 云同步（GitHub Gist）：`pushToCloud` / `pullFromCloud` / `autoPullOnStartup` |
+| `cloud/cloudSync.ts` | 云同步（GitHub Gist）：`pushToCloud` / `pullFromCloud` / `autoPullOnStartup` / `registerCloudSyncAutoPush` / `flushPendingAutoPush` |
+| `cloud/syncPayload.ts` | 纯函数 `syncPayloadHasChanged`：比较本地/云端 Gist payload（供 Node 回归测试与云同步去重逻辑共用） |
 | `gitCommit/commitMessageGenerator.ts` | Git 提交消息生成逻辑（多 key 轮换循环） |
 | `gitCommit/gitUtils.ts` | Git 命令封装 |
 | `tokenizer/tokenizerManager.ts` | o200k_base 分词器管理 (含 LRU 缓存) |
@@ -609,6 +612,7 @@ test/                                     # 测试脚本（运行前需 npm run 
 
 - `keys/config.ts`：`getApiKeyMode` / `getRotationCursorIndex` / `getSingleKeyFallback` / `getRotationStatusCodes` / `getRotationErrorPatterns` / `getBannedErrorPatterns` / `getTransientRetryStatusCodes` / `getExhaustedCooldownMin` / `getTransientRetryTimes`
 - `keys/store.ts`：`getApiKeyStore` / `saveApiKeyStore` / `invalidateApiKeyStoreCache` / `addApiKey` / `addApiKeys` / `removeApiKey` / `setActiveKey` / `setKeyCookie` / `updateApiKey`
+- `keys/state.ts`：`getStoreCache` / `setStoreCache` / `getRotationIndex` / `setRotationIndex` / `getTransientExhaustedMap` / `onApiKeyStoreChanged` / `notifyApiKeyStoreChanged`
 - `keys/selection.ts`：`getPrimaryApiKey` / `pickNextApiKey` / `shouldSingleKeyFallbackSwitch` / `setActiveKeyByValue`
 - `keys/health.ts`：`getTransientExhaustedInfo` / `isApiKeyEligible` / `hasTransientExhaustedKey` / `isKeyRotationError` / `isTransientRetryError` / `isTransientExhaustedReason` / `getKeyRotationReason` / `getKeyUnavailableReason` / `markApiKeyExhausted` / `markApiKeyAvailable` / `updateKeyAvailability` / `resetExhaustedKeys` / `getKeyDisplayStatus`
 - `keys/availability.ts`：`testKeyAvailability`（最小真实聊天请求）
@@ -665,9 +669,10 @@ test/                                     # 测试脚本（运行前需 npm run 
 - `formatTokenCount` / `createProgressBar` / `updateContextStatusBar` / `updateStatusBarWithApiPrompt`
 - `resetCumulativeCounters` / `recordUsage` / `updateCumulativeTooltip`
 
-### 5.11 `src/cloud/cloudSync.ts`
+### 5.11 `src/cloud/` 模块
 
-- `pushToCloud(context)` / `pullFromCloud(context, silent?)` / `autoPullOnStartup(context)`
+- `cloudSync.ts`：`pushToCloud(context, silent?)` / `pullFromCloud(context, silent?)` / `autoPullOnStartup(context)` / `registerCloudSyncAutoPush(context)` / `flushPendingAutoPush()`
+- `syncPayload.ts`：`syncPayloadHasChanged(local, remote)` + 类型 `SyncedKeyEntry` / `SyncPayload`
 
 ### 5.12 `src/gitCommit/` 模块
 
@@ -713,6 +718,9 @@ npm run watch
 # 离线测试（无需 API Key；先自动 compile）
 npm test
 npm run test:offline
+
+# 云同步真实端到端测试（需 GitHub gist 权限凭据；无凭据时 SKIP 退出 0）
+npm run test:e2e
 
 # 打包 VSIX
 npm run build
