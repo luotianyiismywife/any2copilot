@@ -22,6 +22,7 @@
   ├─ ② 换 key 判定（isKeyRotationError，<prefix>.apiKeyRotation*）
   │     命中 → 标记该 key 失效 + 换下一个 key（continue 轮换循环）
   │     默认状态码 [401, 402, 429, 503] + 文本 patterns
+  │     其中命中 <prefix>.apiKeyBannedErrorPatterns → reason="banned"（持久化失效）
   │
   └─ ③ 整轮层重试（tryTransientRetryRound，<prefix>.transientRetry*）
         命中瞬态状态码但**不**命中换 key 状态码 → 不换 key，退避后重试同一个 key
@@ -108,6 +109,7 @@
 |------|------|------|
 | `<prefix>.apiKeyRotationStatusCodes` | `[401, 402, 429, 503]` | 触发**换 key** 的 HTTP 状态码（匹配错误消息中的 `[code]` 或 `status code`） |
 | `<prefix>.apiKeyRotationErrorPatterns` | `["余额不足", "insufficient balance", "INSUFFICIENT_BALANCE", "balance", "RATE_LIMITED", "UPSTREAM_RATE_LIMITED"]` | 触发**换 key** 的错误文本 patterns（不区分大小写） |
+| `<prefix>.apiKeyBannedErrorPatterns` | `["计费账户已被冻结", "\"code\":\"billing\"", "ref_code:400901"]` | 判定为**封号**的错误文本 patterns（不区分大小写）。命中即持久化失效（`reason="banned"`），与普通换 key 区分。空数组 = 禁用封号判定 |
 | `<prefix>.apiKeyMode` | `sticky` | key 使用模式：`sticky`（固定一个，失效才换）/ `rotation`（轮询）/ `single`（仅当前 key） |
 | `<prefix>.singleKeyFallback` | `switch` | `single` 模式下当前 key 不可用时的行为：`switch`（仅余额不足 402 时自动切换）/ `error`（直接报错） |
 | `<prefix>.apiKeyExhaustedCooldownMin` | `10` | 瞬态失效 key（429/503）的冷却时长（分钟）。0 = 立即恢复 |
@@ -219,8 +221,9 @@ maxAttempts × (transientRetryTimes + 1)
 
 1. **换 key 状态码**：`src/keys/config.ts` 的 `getRotationStatusCodes()` 默认值
 2. **换 key 文本 patterns**：`getRotationErrorPatterns()` 默认值（如新平台的余额不足文案）
-3. **瞬态重试状态码**：`getTransientRetryStatusCodes()` 默认值
-4. **HTTP 层重试状态码**：`src/core/utils.ts` 的 `RETRYABLE_STATUS_CODES`（默认 `[502, 504]`）
+3. **封号文本 patterns**：`getBannedErrorPatterns()` 默认值（设置 `apiKeyBannedErrorPatterns`；新平台无封号概念时置空数组）
+4. **瞬态重试状态码**：`getTransientRetryStatusCodes()` 默认值
+5. **HTTP 层重试状态码**：`src/core/utils.ts` 的 `RETRYABLE_STATUS_CODES`（默认 `[502, 504]`）
 
 > 排查方法见 `.copilot/api-reference.md`——用真实请求触发各类错误，记录状态码与响应体，据此调整上述默认值。
 

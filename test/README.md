@@ -18,15 +18,14 @@
 | `test-vision-history.mjs` | 离线 | 跨轮视觉历史编解码 + 双 API 转换器闭环（含空 reasoning_content 回归） |
 | `test-anthropic-tool-result-merge.mjs` | 离线 | Anthropic 连续工具结果合并（3 个并行 tool_use 结果合并为单条 user 消息） |
 | `test-batch-import.mjs` | 离线 | **批量导入解析器**（14 项断言）：`key---cookie---备注;` 格式、空字段、备注含分隔符、容错 |
-| `test-banned-detect.mjs` | 离线 | 封号检测（纯逻辑模拟，无网络请求） |
-| `test-banned-rotation.mjs` | 离线 | 封号轮换（纯逻辑模拟，无网络请求） |
+| `test-banned-rotation.mjs` | 离线 | **封号错误检测**（9 项断言）：`apiKeyBannedErrorPatterns` 命中判定、`reason="banned"`、持久化失效、key 跳过、`REASON_TEXT["banned"]`、自定义/空 patterns |
 | `test-apply-token.mjs` | 联网 | public_key 换发短期 token（平台专属，移植时按需替换） |
 | `test-model-diff.mjs` | 联网 | 内置清单 vs `/v1/models` 差异（内置清单从编译产物读取，不会脱节） |
 | `test-responses-recheck.mjs` | 联网 | Responses 协议复检（工具格式扁平化 / function_call 块 / tool_choice 行为） |
 | `test-vision-check.mjs` | 联网 | 视觉能力检查（生成合法 PNG 测图片输入） |
 
 > **离线测试**（`test-plan-usage` / `test-transient-retry` / `test-keys` / `test-rotation` /
-> `test-vision-history` / `test-anthropic-tool-result-merge` / `test-batch-import`）与平台无关，移植后应保持全绿。
+> `test-banned-rotation` / `test-vision-history` / `test-anthropic-tool-result-merge` / `test-batch-import`）与平台无关，移植后应保持全绿。
 > **联网测试**含平台专属假设（模型 ID、端点、错误语义），移植时需按新平台调整。
 
 ## 运行

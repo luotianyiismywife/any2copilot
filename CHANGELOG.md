@@ -10,7 +10,8 @@
 
 ### 新增
 
-- **离线测试**：`test-keys.mjs`（Key 选择与状态，18 项断言）、`test-rotation.mjs`（轮换循环，7 项断言）。
+- **离线测试**：`test-keys.mjs`（Key 选择与状态，18 项断言）、`test-rotation.mjs`（轮换循环，7 项断言）、`test-banned-rotation.mjs`（封号错误检测，9 项断言，直接导入编译产物）。
+- **封号 patterns 可配置**：新增设置 `apiKeyBannedErrorPatterns`（默认 `["计费账户已被冻结", "\"code\":\"billing\"", "ref_code:400901"]`），命中即判定为封号（`reason="banned"`，持久化失效），与普通换 key 区分。
 
 ### 变更
 
@@ -18,6 +19,8 @@
 - 升级 `@types/node` 22 → 26、`eslint` 9 → 10、`@eslint/js` 9 → 10、`typescript-eslint` 8.60 → 8.71。
 - 修复 eslint 10 新规则报出的 5 处问题（`no-useless-assignment` × 2、`preserve-caught-error` × 3）。
 - 修复 2 个高危依赖漏洞（`brace-expansion` / `js-yaml`）。
+- 封号 patterns 从 `src/keys/health.ts` 硬编码改为经 `getBannedErrorPatterns()` 读取设置；`getRotationErrorPatterns()` 默认值移除封号相关文案（改由 `apiKeyBannedErrorPatterns` 承担）。
+- 删除无断言的 `test-banned-detect.mjs`（其覆盖已并入 `test-banned-rotation.mjs`）。
 
 ## [1.0.0] - 2026-10-07
 

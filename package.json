@@ -425,6 +425,18 @@
 					],
 					"description": "%config.apiKeyRotationErrorPatterns.desc%"
 				},
+				"any2copilot.apiKeyBannedErrorPatterns": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [
+						"计费账户已被冻结",
+						"\"code\":\"billing\"",
+						"ref_code:400901"
+					],
+					"description": "%config.apiKeyBannedErrorPatterns.desc%"
+				},
 				"any2copilot.transientRetryStatusCodes": {
 					"type": "array",
 					"items": {
@@ -542,7 +554,7 @@
 		"lint": "eslint",
 		"watch": "tsc -watch -p ./",
 		"test": "npm run compile && npm run test:offline",
-		"test:offline": "node test/test-plan-usage.mjs && node test/test-transient-retry.mjs && node test/test-keys.mjs && node test/test-rotation.mjs && node test/test-vision-history.mjs && node test/test-anthropic-tool-result-merge.mjs && node test/test-batch-import.mjs",
+		"test:offline": "node test/test-plan-usage.mjs && node test/test-transient-retry.mjs && node test/test-keys.mjs && node test/test-rotation.mjs && node test/test-banned-rotation.mjs && node test/test-vision-history.mjs && node test/test-anthropic-tool-result-merge.mjs && node test/test-batch-import.mjs",
 		"build": "node scripts/build/package-vsix.mjs",
 		"postinstall": "node scripts/build/copy-tokenizer.js"
 	},

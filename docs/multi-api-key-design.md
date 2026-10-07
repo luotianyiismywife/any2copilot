@@ -220,7 +220,8 @@ while (true):
 1. **配置前缀**：`<prefix>` 全局替换（见 `PLATFORM_PORTING.md` §1.2）。
 2. **失效判定**：若新平台的错误语义不同，调整 `src/keys/config.ts` 的默认状态码与 patterns：
    - `getRotationStatusCodes()` 默认 `[401, 402, 429, 503]`
-   - `getRotationErrorPatterns()` 默认含 `余额不足` / `insufficient balance` / `billing` 等
+   - `getRotationErrorPatterns()` 默认含 `余额不足` / `insufficient balance` / `INSUFFICIENT_BALANCE` / `balance` / `RATE_LIMITED` / `UPSTREAM_RATE_LIMITED`
+   - `getBannedErrorPatterns()`（设置 `apiKeyBannedErrorPatterns`）默认含 `计费账户已被冻结` / `"code":"billing"` / `ref_code:400901`——命中即判定为**封号**（持久化失效，`reason="banned"`）
    - `getTransientRetryStatusCodes()` 默认 `[429, 500, 503]`
 3. **余额展示**：实现 `src/balance/accountInfo.ts` 的 `queryAccountInfo()`（见 `plan-usage-design.md` §3）。
 

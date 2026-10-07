@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { getExhaustedCooldownMin, getRotationErrorPatterns, getRotationStatusCodes, getTransientRetryStatusCodes } from "./config";
+import { getBannedErrorPatterns, getExhaustedCooldownMin, getRotationErrorPatterns, getRotationStatusCodes, getTransientRetryStatusCodes } from "./config";
 import { getTransientExhaustedMap } from "./state";
 import { getApiKeyStore, saveApiKeyStore } from "./store";
 import type { ApiKeyEntry, KeyDisplayStatus } from "./types";
@@ -72,8 +72,8 @@ export function isKeyRotationError(err: unknown): boolean {
             return true;
         }
     }
-    // 文本匹配（不区分大小写）
-    for (const pattern of patterns) {
+    // 文本匹配（不区分大小写）：轮换 patterns + 封号 patterns
+    for (const pattern of [...patterns, ...getBannedErrorPatterns()]) {
         if (pattern && message.includes(pattern.toLowerCase())) {
             return true;
         }
@@ -104,7 +104,7 @@ export function isTransientRetryError(err: unknown): boolean {
  * - 401 → "invalid"
  * - 429 / RATE_LIMITED → "rate_limited"
  * - 503 → "server_error"
- * - 封号（code=billing / "计费账户已被冻结"，400，2026-09-19 实测）→ "banned"
+ * - 封号（可配置 patterns，默认含 code=billing / "计费账户已被冻结"）→ "banned"
  * - 其他（文本 patterns 命中的轮换错误）→ "api_error"
  */
 export function getKeyRotationReason(err: unknown): string {
@@ -125,8 +125,8 @@ export function getKeyRotationReason(err: unknown): string {
     if (message.includes("[503]") || /\bstatus 503\b/.test(message)) {
         return "server_error";
     }
-    // 封号：400 + code=billing / "计费账户已被冻结"（确定性失败，持久化不可用）
-    if (message.includes("计费账户已被冻结") || message.includes("\"code\":\"billing\"") || message.includes("ref_code:400901") || message.includes("ref_code\":400901")) {
+    // 封号：命中可配置的封号 patterns（确定性失败，持久化不可用）
+    if (getBannedErrorPatterns().some((p) => p && message.includes(p.toLowerCase()))) {
         return "banned";
     }
     return "api_error";

@@ -44,9 +44,23 @@ export function getRotationErrorPatterns(): string[] {
         "balance",
         "RATE_LIMITED",
         "UPSTREAM_RATE_LIMITED",
-        // 封号（计费账户被冻结）：400 + code=billing，2026-09-19 实测
+    ]);
+}
+
+/**
+ * 读取"封号"错误文本 patterns（默认见下）。
+ *
+ * 命中这些 patterns 的错误被归类为 `banned`（确定性失败，持久化 `available=false`），
+ * 与 `api_error` 区分开，便于报错时给出更明确的提示。
+ *
+ * ⚠️ **移植对接点**：默认值是示例（某平台的"计费账户被冻结"响应），
+ * 移植时按你平台的封号/冻结错误文案调整。
+ */
+export function getBannedErrorPatterns(): string[] {
+    return getConfig().get<string[]>("apiKeyBannedErrorPatterns", [
         "计费账户已被冻结",
-        "billing",
+        "\"code\":\"billing\"",
+        "ref_code:400901",
     ]);
 }
 

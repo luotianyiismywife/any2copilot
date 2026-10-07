@@ -56,7 +56,7 @@
 | **多仓库支持** | 支持多根工作区 (multi-root) 中多个 Git 仓库的提交消息生成 |
 | **模型预设** | 支持通过命令面板快速切换 temperature/top_p 预设（🎯 Precise/⚖️ Balanced/🔥 Creative），也支持手动自定义输入 |
 | **国际化** | 内置简体中文 (zh-cn) 中英文双语界面 |
-| **重试机制** | **两层重试，职责分离**：① **HTTP 层**（`executeWithRetry`，`<prefix>.retry.*`）——同一请求退避重试，默认 2 次，仅覆盖**网关错误**（502/504）与网络错误；② **整轮层**（`tryTransientRetryRound`，`<prefix>.transientRetry*`）——重跑整个 key 轮换循环，默认 3 次，覆盖平台错误（429/500/503）。**两层刻意不重叠**。**换 key vs 不换 key**：命中 `<prefix>.apiKeyRotationStatusCodes`（默认 [401,402,429,503]）→ 换 key；命中 `<prefix>.transientRetryStatusCodes`（默认 [429,500,503]）但**不**命中换 key 状态码（如 500）→ 不换 key、退避后重试同一 key。配置指南见 `docs/retry-and-key-rotation.md` |
+| **重试机制** | **两层重试，职责分离**：① **HTTP 层**（`executeWithRetry`，`<prefix>.retry.*`）——同一请求退避重试，默认 2 次，仅覆盖**网关错误**（502/504）与网络错误；② **整轮层**（`tryTransientRetryRound`，`<prefix>.transientRetry*`）——重跑整个 key 轮换循环，默认 3 次，覆盖平台错误（429/500/503）。**两层刻意不重叠**。**换 key vs 不换 key**：命中 `<prefix>.apiKeyRotationStatusCodes`（默认 [401,402,429,503]）→ 换 key；命中 `<prefix>.transientRetryStatusCodes`（默认 [429,500,503]）但**不**命中换 key 状态码（如 500）→ 不换 key、退避后重试同一 key。**封号判定**：命中 `<prefix>.apiKeyBannedErrorPatterns`（默认 `["计费账户已被冻结", "\"code\":\"billing\"", "ref_code:400901"]`）→ `reason="banned"` 持久化失效。配置指南见 `docs/retry-and-key-rotation.md` |
 | **请求延迟** | 可配置的请求间隔延迟，避免触发 API 限流 |
 | **超时控制** | 可配置的请求超时时间（默认 10 分钟） |
 | **立即取消** | 取消请求时通过 `reader.cancel()` 立即中断流式读取 |
@@ -607,7 +607,7 @@ test/                                     # 测试脚本（运行前需 npm run 
 
 > `keys/keyManager.ts` 为 barrel，统一导出以下模块的全部 API。
 
-- `keys/config.ts`：`getApiKeyMode` / `getRotationCursorIndex` / `getSingleKeyFallback` / `getRotationStatusCodes` / `getRotationErrorPatterns` / `getTransientRetryStatusCodes` / `getExhaustedCooldownMin` / `getTransientRetryTimes`
+- `keys/config.ts`：`getApiKeyMode` / `getRotationCursorIndex` / `getSingleKeyFallback` / `getRotationStatusCodes` / `getRotationErrorPatterns` / `getBannedErrorPatterns` / `getTransientRetryStatusCodes` / `getExhaustedCooldownMin` / `getTransientRetryTimes`
 - `keys/store.ts`：`getApiKeyStore` / `saveApiKeyStore` / `invalidateApiKeyStoreCache` / `addApiKey` / `addApiKeys` / `removeApiKey` / `setActiveKey` / `setKeyCookie` / `updateApiKey`
 - `keys/selection.ts`：`getPrimaryApiKey` / `pickNextApiKey` / `shouldSingleKeyFallbackSwitch` / `setActiveKeyByValue`
 - `keys/health.ts`：`getTransientExhaustedInfo` / `isApiKeyEligible` / `hasTransientExhaustedKey` / `isKeyRotationError` / `isTransientRetryError` / `isTransientExhaustedReason` / `getKeyRotationReason` / `getKeyUnavailableReason` / `markApiKeyExhausted` / `markApiKeyAvailable` / `updateKeyAvailability` / `resetExhaustedKeys` / `getKeyDisplayStatus`
