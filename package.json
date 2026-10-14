@@ -381,57 +381,84 @@
 					],
 					"description": "%config.singleKeyFallback.desc%"
 				},
-				"any2copilot.apiKeyRotationStatusCodes": {
+				"any2copilot.errorRules": {
 					"type": "array",
 					"items": {
-						"type": "number"
+						"type": "object",
+						"properties": {
+							"code": {
+								"type": "string",
+								"description": "Error body error.code field (exact match, primary match field)"
+							},
+							"message": {
+								"type": "string",
+								"description": "Descriptive label only (not used for matching)"
+							},
+							"statusCode": {
+								"type": "number",
+								"description": "HTTP status code fallback"
+							},
+							"action": {
+								"type": "string",
+								"enum": [
+									"retrySameKey",
+									"rotateCooldown",
+									"rotatePersist"
+								]
+							}
+						},
+						"required": [
+							"action"
+						]
 					},
 					"default": [
-						401,
-						402,
-						429,
-						503
+						{
+							"code": "billing",
+							"message": "计费账户已被冻结（封号）",
+							"action": "rotatePersist"
+						},
+						{
+							"code": "upstream_stream_error",
+							"message": "上游模型流意外中断",
+							"action": "retrySameKey"
+						},
+						{
+							"code": "INSUFFICIENT_BALANCE",
+							"message": "余额不足",
+							"action": "rotatePersist"
+						},
+						{
+							"statusCode": 401,
+							"message": "无效 key",
+							"action": "rotatePersist"
+						},
+						{
+							"statusCode": 402,
+							"message": "余额不足",
+							"action": "rotatePersist"
+						},
+						{
+							"statusCode": 429,
+							"message": "限流",
+							"action": "rotateCooldown"
+						},
+						{
+							"statusCode": 503,
+							"message": "服务端繁忙",
+							"action": "rotateCooldown"
+						},
+						{
+							"statusCode": 400,
+							"message": "上游中断复用 400",
+							"action": "retrySameKey"
+						},
+						{
+							"statusCode": 500,
+							"message": "内部错误",
+							"action": "retrySameKey"
+						}
 					],
-					"description": "%config.apiKeyRotationStatusCodes.desc%"
-				},
-				"any2copilot.apiKeyRotationErrorPatterns": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					},
-					"default": [
-						"余额不足",
-						"insufficient balance",
-						"INSUFFICIENT_BALANCE",
-						"balance",
-						"RATE_LIMITED",
-						"UPSTREAM_RATE_LIMITED"
-					],
-					"description": "%config.apiKeyRotationErrorPatterns.desc%"
-				},
-				"any2copilot.apiKeyBannedErrorPatterns": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					},
-					"default": [
-						"计费账户已被冻结",
-						"\"code\":\"billing\"",
-						"ref_code:400901"
-					],
-					"description": "%config.apiKeyBannedErrorPatterns.desc%"
-				},
-				"any2copilot.transientRetryStatusCodes": {
-					"type": "array",
-					"items": {
-						"type": "number"
-					},
-					"default": [
-						429,
-						500,
-						503
-					],
-					"description": "%config.transientRetryStatusCodes.desc%"
+					"description": "%config.errorRules.desc%"
 				},
 				"any2copilot.apiKeyExhaustedCooldownMin": {
 					"type": "number",
@@ -543,7 +570,7 @@
 		"lint": "eslint",
 		"watch": "tsc -watch -p ./",
 		"test": "npm run compile && npm run test:offline",
-		"test:offline": "node test/test-plan-usage.mjs && node test/test-transient-retry.mjs && node test/test-keys.mjs && node test/test-rotation.mjs && node test/test-banned-rotation.mjs && node test/test-vision-history.mjs && node test/test-anthropic-tool-result-merge.mjs && node test/test-batch-import.mjs && node test/test-cloud-sync-auto-push.mjs && node test/test-cloud-sync-flow.mjs",
+		"test:offline": "node test/test-plan-usage.mjs && node test/test-transient-retry.mjs && node test/test-keys.mjs && node test/test-rotation.mjs && node test/test-banned-rotation.mjs && node test/test-vision-history.mjs && node test/test-anthropic-tool-result-merge.mjs && node test/test-anthropic-image-index.mjs && node test/test-anthropic-vision-order.mjs && node test/test-image-dimensions.mjs && node test/test-sse-stream.mjs && node test/test-split-tool-call-args.mjs && node test/test-batch-import.mjs && node test/test-cloud-sync-auto-push.mjs && node test/test-cloud-sync-flow.mjs",
 		"test:e2e": "node test/test-cloud-sync-e2e.mjs",
 		"build": "node scripts/build/package-vsix.mjs",
 		"postinstall": "node scripts/build/copy-tokenizer.js"

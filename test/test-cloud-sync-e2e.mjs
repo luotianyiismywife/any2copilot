@@ -203,8 +203,8 @@ try {
     invalidateApiKeyStoreCache();
     const pushCtx = makeContext(
         [
-            { value: "sk_e2e_alpha", cookie: "cookie_alpha", label: "Alpha", available: null },
-            { value: "sk_e2e_beta", cookie: "cookie_beta", label: "Beta", available: null },
+            { value: "sk_e2e_alpha", credential: "credential_alpha", label: "Alpha", available: null },
+            { value: "sk_e2e_beta", credential: "credential_beta", label: "Beta", available: null },
         ],
         { [GIST_ID_KEY]: testGistId },
     );
@@ -214,7 +214,7 @@ try {
     const pushedContent = JSON.parse(afterPush.files[FILE].content);
     check("push：云端写入 2 个 key", pushedContent.keys.length, 2);
     check("push：value 往返正确", pushedContent.keys[0].value, "sk_e2e_alpha");
-    check("push：cookie 往返正确", pushedContent.keys[0].cookie, "cookie_alpha");
+    check("push：credential 往返正确", pushedContent.keys[0].credential, "credential_alpha");
     check("push：label 往返正确", pushedContent.keys[1].label, "Beta");
     check("push：version 正确", pushedContent.version, 1);
     check("push：lastCloudSyncAt 等于服务端 updated_at", pushCtx._globalData.get(LAST_SYNC_KEY), afterPush.updated_at);
@@ -225,8 +225,8 @@ try {
     invalidateApiKeyStoreCache();
     const noopCtx = makeContext(
         [
-            { value: "sk_e2e_alpha", cookie: "cookie_alpha", label: "Alpha", available: null },
-            { value: "sk_e2e_beta", cookie: "cookie_beta", label: "Beta", available: null },
+            { value: "sk_e2e_alpha", credential: "credential_alpha", label: "Alpha", available: null },
+            { value: "sk_e2e_beta", credential: "credential_beta", label: "Beta", available: null },
         ],
         { [GIST_ID_KEY]: testGistId },
     );
@@ -239,8 +239,8 @@ try {
         version: 1,
         updatedAt: new Date().toISOString(),
         keys: [
-            { value: "sk_e2e_alpha", cookie: "cookie_alpha_v2", label: "Alpha2" },
-            { value: "sk_e2e_gamma", cookie: "cookie_gamma", label: "Gamma" },
+            { value: "sk_e2e_alpha", credential: "credential_alpha_v2", label: "Alpha2" },
+            { value: "sk_e2e_gamma", credential: "credential_gamma", label: "Gamma" },
         ],
     };
     await gh(`${API}/${testGistId}`, {
@@ -252,15 +252,15 @@ try {
     invalidateApiKeyStoreCache();
     const pullCtx = makeContext(
         [
-            { value: "sk_e2e_alpha", cookie: "cookie_alpha", label: "Alpha", available: true, lastCheckedAt: 999 },
-            { value: "sk_e2e_beta", cookie: "cookie_beta", label: "Beta", available: null },
+            { value: "sk_e2e_alpha", credential: "credential_alpha", label: "Alpha", available: true, lastCheckedAt: 999 },
+            { value: "sk_e2e_beta", credential: "credential_beta", label: "Beta", available: null },
         ],
         { [GIST_ID_KEY]: testGistId },
     );
     const changed = await pullFromCloud(pullCtx, false);
     const pulled = JSON.parse(pullCtx._secretsData.get(STORE_KEY));
     check("pull：返回 true", changed, true);
-    check("pull：云端 cookie 覆盖本地", pulled.keys[0].cookie, "cookie_alpha_v2");
+    check("pull：云端 credential 覆盖本地", pulled.keys[0].credential, "credential_alpha_v2");
     check("pull：云端 label 覆盖本地", pulled.keys[0].label, "Alpha2");
     check("pull：本地可用性状态保留", pulled.keys[0].available, true);
     check("pull：本地 lastCheckedAt 保留", pulled.keys[0].lastCheckedAt, 999);

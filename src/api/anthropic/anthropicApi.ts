@@ -82,7 +82,9 @@ export class AnthropicApi extends CommonApi<AnthropicMessage, AnthropicRequestBo
 		for (const m of messages) {
 			const role = mapRole(m);
 			const textParts: string[] = [];
-			const imageParts: vscode.LanguageModelDataPart[] = [];
+			// 图片索引必须**按 part 顺序内联分配**，与 collectLocalImages 的存储顺序一致
+			// （vision 模型用不到索引，统一填 -1）。
+			const imageParts: { part: vscode.LanguageModelDataPart; index: number }[] = [];
 			const toolCalls: AnthropicToolUseBlock[] = [];
 			const toolResults: AnthropicToolResultBlock[] = [];
 			const thinkingParts: string[] = [];
@@ -101,7 +103,13 @@ export class AnthropicApi extends CommonApi<AnthropicMessage, AnthropicRequestBo
 						textParts.push(result.text);
 					}
 				} else if (part instanceof vscode.LanguageModelDataPart && isImageMimeType(part.mimeType)) {
-					imageParts.push(part);
+					if (modelSupportsVision) {
+						imageParts.push({ part, index: -1 });
+					} else {
+						// 非视觉模型：内联分配索引（与 collectLocalImages 顺序一致）
+						imageParts.push({ part, index: imageIndex });
+						imageIndex++;
+					}
 				} else if (part instanceof vscode.LanguageModelToolCallPart) {
 					const id = part.callId || `toolu_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 					toolCalls.push({
@@ -145,12 +153,6 @@ export class AnthropicApi extends CommonApi<AnthropicMessage, AnthropicRequestBo
 			const joinedText = textParts.join("").trim();
 			const joinedThinking = thinkingParts.join("").trim();
 
-			// Restore persisted vision calls before the normal content of this
-			// message, preserving assistant tool_use → user tool_result order.
-			for (const entry of visionToolHistory) {
-				out.push(...toAnthropicVisionToolMessages(entry));
-			}
-
 			// Handle system messages separately (Anthropic uses top-level system field)
 			if (role === "system") {
 				if (joinedText) {
@@ -172,8 +174,17 @@ export class AnthropicApi extends CommonApi<AnthropicMessage, AnthropicRequestBo
 				continue;
 			}
 
-			// Flush buffered tool results before emitting any other message type
+			// Flush buffered tool results before emitting any other message type.
+			// MUST run before the vision-history push below: the buffered results
+			// answer an EARLIER assistant tool_use, so they belong before this
+			// message's restored vision tool_use/tool_result pair.
 			flushPendingToolResults();
+
+			// Restore persisted vision calls before the normal content of this
+			// message, preserving assistant tool_use → user tool_result order.
+			for (const entry of visionToolHistory) {
+				out.push(...toAnthropicVisionToolMessages(entry));
+			}
 
 			// Build content blocks for user/assistant messages
 			const contentBlocks: AnthropicContentBlock[] = [];
@@ -188,7 +199,7 @@ export class AnthropicApi extends CommonApi<AnthropicMessage, AnthropicRequestBo
 
 			if (modelSupportsVision) {
 				// Add image content (vision model)
-				for (const imagePart of imageParts) {
+				for (const { part: imagePart } of imageParts) {
 					const base64Data = Buffer.from(imagePart.data).toString("base64");
 					contentBlocks.push({
 						type: "image",
@@ -201,20 +212,22 @@ export class AnthropicApi extends CommonApi<AnthropicMessage, AnthropicRequestBo
 				}
 			} else {
 				// Non-vision model: add text references for stored images
-				for (let i = 0; i < imageParts.length; i++) {
+				// (indices were assigned inline in part order above)
+				for (const { index } of imageParts) {
 					contentBlocks.push({
 						type: "text",
-						text: buildUserImageReference(imageIndex),
+						text: buildUserImageReference(index),
 					});
-					imageIndex++;
 				}
 			}
 
-			// Add thinking content for assistant messages
-			if (role === "assistant" && modelConfig.includeReasoningInRequest) {
-				contentBlocks.push({
+			// Add thinking content for assistant messages.
+			// Anthropic protocol: thinking blocks must be the FIRST content block
+			// of an assistant message. Skip entirely when there is no thinking.
+			if (role === "assistant" && modelConfig.includeReasoningInRequest && joinedThinking) {
+				contentBlocks.unshift({
 					type: "thinking",
-					thinking: joinedThinking || "Next step.",
+					thinking: joinedThinking,
 				});
 			}
 
@@ -437,7 +450,7 @@ export class AnthropicApi extends CommonApi<AnthropicMessage, AnthropicRequestBo
 					progress.report(new vscode.LanguageModelTextPart(" "));
 					this._emittedBeginToolCallsHint = true;
 				}
-				const idx = (chunk.index as number) ?? 0;
+				const idx = String((chunk.index as number) ?? 0);
 				this._toolCallBuffers.set(idx, {
 					id: chunk.content_block.id,
 					name: chunk.content_block.name,
@@ -453,7 +466,7 @@ export class AnthropicApi extends CommonApi<AnthropicMessage, AnthropicRequestBo
 			} else if (chunk.delta.type === "thinking_delta" && chunk.delta.thinking) {
 				this.bufferThinkingContent(chunk.delta.thinking, progress);
 			} else if (chunk.delta.type === "input_json_delta" && chunk.delta.partial_json) {
-				const idx = (chunk.index as number) ?? 0;
+				const idx = String((chunk.index as number) ?? 0);
 				const buf = this._toolCallBuffers.get(idx);
 				if (buf) {
 					buf.args += chunk.delta.partial_json;

@@ -2,12 +2,12 @@
  * 封号检测与轮换测试（`src/keys/health.ts` + `src/keys/config.ts`）。
  *
  * 覆盖：
- *  1. 封号错误（可配置 patterns）→ isKeyRotationError 命中 + reason = "banned"
+ *  1. 封号错误（errorRules code=billing）→ isKeyRotationError 命中 + reason = 规则 message
  *  2. 封号是确定性失败 → markApiKeyExhausted 持久化 available=false
  *  3. 封号 key 被 pickNextApiKey 跳过
  *  4. 全部 key 封号 → 报错显示 REASON_TEXT["banned"]
- *  5. 自定义封号 patterns（apiKeyBannedErrorPatterns 可配置）
- *  6. 400 状态码本身不触发轮换（仅 patterns 触发）
+ *  5. 自定义 errorRules（code 可配置）
+ *  6. 400 状态码本身不触发轮换（code 优先）
  *
  * 运行前需 `npm run compile`。
  * 用法：node test/test-banned-rotation.mjs
@@ -90,15 +90,15 @@ await check("封号错误命中 isKeyRotationError", () => {
     assert.equal(isKeyRotationError(bannedError()), true);
 });
 
-await check("封号错误 reason = banned", () => {
-    assert.equal(getKeyRotationReason(bannedError()), "banned");
+await check("封号错误 reason = 规则的 message 说明", () => {
+    assert.equal(getKeyRotationReason(bannedError()), "计费账户已被冻结（封号）");
 });
 
-await check("400 状态码本身不触发轮换（仅 patterns 触发）", () => {
-    // 无 patterns 命中的纯 400 错误
+await check("400 状态码本身不触发轮换（code 优先，纯 400 → retrySameKey）", () => {
+    // 无 code 命中的纯 400 错误 → statusCode 400 兜底 → retrySameKey（不轮换）
     const plain400 = new Error("API error: [400] Bad Request\ninvalid parameter");
     assert.equal(isKeyRotationError(plain400), false);
-    assert.equal(getKeyRotationReason(plain400), "api_error");
+    assert.equal(getKeyRotationReason(plain400), "上游中断复用 400");
 });
 
 // ---------------------------------------------------------------------------
@@ -109,7 +109,7 @@ console.log("封号持久化");
 await check("markApiKeyExhausted(banned) 持久化 available=false", async () => {
     const secrets = makeSecrets();
     await reset(secrets, [K("a"), K("b")]);
-    await markApiKeyExhausted(secrets, "a", "banned");
+    await markApiKeyExhausted(secrets, "a", "计费账户已被冻结（封号）", "rotatePersist");
     const store = await getApiKeyStore(secrets);
     assert.equal(store.keys.find((k) => k.value === "a").available, false);
 });
@@ -117,7 +117,7 @@ await check("markApiKeyExhausted(banned) 持久化 available=false", async () =>
 await check("封号 key 变 ineligible", async () => {
     const secrets = makeSecrets();
     await reset(secrets, [K("a"), K("b")]);
-    await markApiKeyExhausted(secrets, "a", "banned");
+    await markApiKeyExhausted(secrets, "a", "计费账户已被冻结（封号）", "rotatePersist");
     const store = await getApiKeyStore(secrets);
     assert.equal(isApiKeyEligible(store.keys.find((k) => k.value === "a")), false);
 });
@@ -130,7 +130,7 @@ console.log("封号 key 跳过");
 await check("pickNextApiKey 跳过封号 key", async () => {
     const secrets = makeSecrets();
     await reset(secrets, [K("a"), K("b")]);
-    await markApiKeyExhausted(secrets, "a", "banned");
+    await markApiKeyExhausted(secrets, "a", "计费账户已被冻结（封号）", "rotatePersist");
     const picked = await pickNextApiKey(secrets, "rotation");
     assert.equal(picked.value, "b");
 });
@@ -145,21 +145,21 @@ await check("REASON_TEXT 含 banned 文案", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 5. 自定义封号 patterns
+// 5. 自定义 errorRules
 // ---------------------------------------------------------------------------
-console.log("自定义封号 patterns");
+console.log("自定义 errorRules");
 
-await check("自定义 patterns 生效", () => {
-    settings = { apiKeyBannedErrorPatterns: ["account suspended"] };
-    const err = new Error("API error: [400] Bad Request\naccount suspended");
+await check("自定义规则生效（新增 code）", () => {
+    settings = { errorRules: [{ code: "account_suspended", message: "账号被暂停", action: "rotatePersist" }] };
+    const err = new Error('API error: [400] Bad Request\n{"code":"account_suspended"}');
     assert.equal(isKeyRotationError(err), true);
-    assert.equal(getKeyRotationReason(err), "banned");
+    assert.equal(getKeyRotationReason(err), "账号被暂停");
     settings = {};
 });
 
-await check("清空 patterns 后不再识别为封号", () => {
-    settings = { apiKeyBannedErrorPatterns: [] };
-    assert.equal(getKeyRotationReason(bannedError()), "api_error");
+await check("清空规则后回退默认（billing 仍识别）", () => {
+    settings = { errorRules: [] };
+    assert.equal(getKeyRotationReason(bannedError()), "计费账户已被冻结（封号）");
     settings = {};
 });
 

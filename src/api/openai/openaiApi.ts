@@ -477,17 +477,49 @@ export class OpenaiApi extends CommonApi<OpenAIChatMessage, Record<string, unkno
             }
 
             for (const tc of toolCalls) {
-                const idx = (tc.index as number) ?? 0;
+                const tcId = typeof tc.id === "string" && tc.id ? tc.id : undefined;
+                const tcIndex = typeof tc.index === "number" ? String(tc.index) : undefined;
+                const func = tc.function as Record<string, unknown> | undefined;
+                const tcName = typeof func?.name === "string" && func.name ? (func.name as string) : undefined;
+                // Resolve buffer key. The canonical key is the tool-call `id`. When a
+                // chunk carries both id and index, record `index -> id` so that later
+                // argument-only chunks (which carry only `index`, no id) resolve back to
+                // the SAME bucket instead of opening a separate index bucket. This fixes
+                // SenseAudio-style streaming tool_calls, whose argument fragments drop
+                // `id` (non-standard vs OpenAI), which otherwise split name (id bucket) and
+                // args (index bucket) apart and yield "Invalid JSON for tool call".
+                let idx: string | undefined;
+                if (tcId) {
+                    idx = tcId;
+                    if (tcIndex) {
+                        this._indexToId.set(tcIndex, tcId);
+                    }
+                } else if (tcIndex) {
+                    const mappedId = this._indexToId.get(tcIndex);
+                    if (mappedId && !this._completedToolCallIndices.has(mappedId)) {
+                        idx = mappedId;
+                    } else {
+                        idx = tcIndex;
+                    }
+                } else if (this._lastToolCallKey) {
+                    idx = this._lastToolCallKey;
+                } else {
+                    let n = this._toolCallBuffers.size;
+                    while (this._toolCallBuffers.has(`auto_${n}`) || this._completedToolCallIndices.has(`auto_${n}`)) {
+                        n++;
+                    }
+                    idx = `auto_${n}`;
+                }
+                this._lastToolCallKey = idx;
                 if (this._completedToolCallIndices.has(idx)) {
                     continue;
                 }
                 const buf = this._toolCallBuffers.get(idx) ?? { args: "" };
-                if (tc.id && typeof tc.id === "string") {
-                    buf.id = tc.id as string;
+                if (tcId) {
+                    buf.id = tcId;
                 }
-                const func = tc.function as Record<string, unknown> | undefined;
-                if (func?.name && typeof func.name === "string") {
-                    buf.name = func.name as string;
+                if (tcName) {
+                    buf.name = tcName;
                 }
                 if (typeof func?.arguments === "string") {
                     buf.args += func.arguments as string;

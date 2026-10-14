@@ -12,14 +12,13 @@
  */
 
 export type { ApiKeyEntry, ApiKeyStore, ApiKeyMode, SingleKeyFallback, KeyDisplayStatus } from "./types";
+export type { ErrorAction, ErrorRule } from "./config";
 
 export {
     getApiKeyMode,
     getRotationCursorIndex,
     getSingleKeyFallback,
-    getRotationStatusCodes,
-    getRotationErrorPatterns,
-    getTransientRetryStatusCodes,
+    getErrorRules,
     getExhaustedCooldownMin,
     getTransientRetryTimes,
 } from "./config";
@@ -32,7 +31,7 @@ export {
     addApiKeys,
     removeApiKey,
     setActiveKey,
-    setKeyCookie,
+    setKeyCredential,
     updateApiKey,
 } from "./store";
 
@@ -41,15 +40,17 @@ export {
     pickNextApiKey,
     shouldSingleKeyFallbackSwitch,
     setActiveKeyByValue,
+    pickAccountCredential,
+    getAccountCredential,
 } from "./selection";
 
 export {
     getTransientExhaustedInfo,
     isApiKeyEligible,
     hasTransientExhaustedKey,
+    matchErrorRule,
     isKeyRotationError,
     isTransientRetryError,
-    isTransientExhaustedReason,
     getKeyRotationReason,
     getKeyUnavailableReason,
     markApiKeyExhausted,
@@ -61,4 +62,4 @@ export {
 
 export { testKeyAvailability } from "./availability";
 
-export { maskApiKey, maskCookie } from "./mask";
+export { maskApiKey, maskCredential } from "./mask";

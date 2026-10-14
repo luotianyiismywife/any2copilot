@@ -6,22 +6,20 @@ import { CommonApi } from "../api/commonApi";
 import {
     getApiKeyMode,
     getApiKeyStore,
-    getKeyRotationReason,
     getSingleKeyFallback,
     getTransientRetryTimes,
     hasTransientExhaustedKey,
-    isKeyRotationError,
-    isTransientExhaustedReason,
-    isTransientRetryError,
     markApiKeyAvailable,
     markApiKeyExhausted,
     maskApiKey,
+    matchErrorRule,
     pickNextApiKey,
     setActiveKeyByValue,
     shouldSingleKeyFallbackSwitch,
     type ApiKeyEntry,
+    type ErrorRule,
 } from "../keys/keyManager";
-import { REASON_TEXT, buildAllKeysUnavailableDetail, tryTransientRetryRound } from "./errors";
+import { buildAllKeysUnavailableDetail, tryTransientRetryRound, VisionRoundError } from "./errors";
 
 /**
  * 多 API Key 轮换循环。
@@ -48,6 +46,12 @@ export interface RotationLoopParams {
     customHeaders?: Record<string, string>;
     /** 协议模式，用于构造请求头（anthropic 用 x-api-key）。 */
     apiMode: string;
+    /**
+     * 是否已向用户输出过内容（文本/推理/工具调用）。若为 true，则**不再换 key
+     * 重跑**——重跑会把已显示的答案再输出一遍。由 provider.ts 的 progress 包装
+     * 维护。
+     */
+    hasEmittedOutput?: () => boolean;
     /** 成功使用 fallback key 后的通知回调（single 模式余额不足自动切换）。 */
     onFallbackSwitch?: (entry: ApiKeyEntry) => void;
 }
@@ -68,10 +72,11 @@ export async function runKeyRotationLoop(params: RotationLoopParams): Promise<vo
     // already advanced and pickNextApiKey would silently switch to the next
     // key — contradicting "500 is a platform problem, do not rotate keys".
     let forceKey: ApiKeyEntry | undefined;
-    // Track per-key failure reasons so the "all keys exhausted" error can
+    // Track per-key failure rules so the "all keys exhausted" error can
     // show which key failed and why (masked), and distinguish transient
-    // failures (429/503 — retry later) from permanent ones (402/401 — check).
-    const failedKeys = new Map<string, string>();
+    // failures (rotateCooldown — retry later) from permanent ones
+    // (rotatePersist — check).
+    const failedKeys = new Map<string, ErrorRule>();
     // Transient (429/503) whole-round auto-retry: when every key is busy or
     // rate-limited, wait with backoff and retry the whole round instead of
     // failing immediately (platform congestion usually clears within seconds).
@@ -93,9 +98,9 @@ export async function runKeyRotationLoop(params: RotationLoopParams): Promise<vo
         // If every key has failed at least one round, stop trying.
         if (totalKeys > 0 && failedKeys.size >= totalKeys) {
             const detail = [...failedKeys.entries()]
-                .map(([key, reason]) => `${maskApiKey(key)}: ${l10n(REASON_TEXT[reason] ?? reason)}`)
+                .map(([key, rule]) => `${maskApiKey(key)}: ${rule.message ?? rule.code ?? ""}`)
                 .join("; ");
-            const hasTransient = [...failedKeys.values()].some((r) => r === "rate_limited" || r === "server_error");
+            const hasTransient = [...failedKeys.values()].some((r) => r.action === "rotateCooldown");
             // Platform busy / rate-limited: back off and retry the whole
             // round automatically instead of failing immediately.
             if (hasTransient && (await tryTransientRetryRound(secrets, wholeRoundRetryCount, maxTransientRetries))) {
@@ -107,7 +112,7 @@ export async function runKeyRotationLoop(params: RotationLoopParams): Promise<vo
             if (hasTransient) {
                 throw new Error(l10nFormat("All API keys are temporarily unavailable ({0}). Please retry later.", detail));
             }
-            throw new Error(l10nFormat("All API keys are unavailable ({0}). Use the Manage API Keys command to check availability.", detail));
+            throw new Error(l10nFormat("All API keys are unavailable ({0}). Use the Manage API Keys command to check availability, or reset exhausted states to recover keys that may have been marked unavailable by mistake.", detail));
         }
 
         // 1. Pick the next candidate key (forced re-use after a platform-side
@@ -160,7 +165,7 @@ export async function runKeyRotationLoop(params: RotationLoopParams): Promise<vo
                     );
                 }
                 throw new Error(
-                    l10nFormat("All API keys are unavailable ({0}). Use the Manage API Keys command to check availability.", detail)
+                    l10nFormat("All API keys are unavailable ({0}). Use the Manage API Keys command to check availability, or reset exhausted states to recover keys that may have been marked unavailable by mistake.", detail)
                 );
             }
         }
@@ -193,39 +198,48 @@ export async function runKeyRotationLoop(params: RotationLoopParams): Promise<vo
             if (abortController.signal.aborted) {
                 throw err; // timeout (outer catch shows friendly message)
             }
-            if (isKeyRotationError(err)) {
-                const rawReason = getKeyRotationReason(err);
-                // Transient errors (platform busy / rate limit, per
-                // transientRetryStatusCodes) must be kept cooldown-only
-                // (never persisted unavailable) so the whole-round auto
-                // retry can actually re-pick the keys. If the raw reason
-                // isn't already transient (e.g. 500 → api_error but the
-                // user added 500 to transientRetryStatusCodes), normalize
-                // it to server_error so markApiKeyExhausted only cools.
-                const reason =
-                    isTransientRetryError(err) && !isTransientExhaustedReason(rawReason)
-                        ? "server_error"
-                        : rawReason;
-                failedKeys.set(currentEntry.value, reason);
-                await markApiKeyExhausted(secrets, currentEntry.value, reason);
+            // 视觉代理轮内失败：主请求已成功、tool 上下文已建立，换 key 重跑整个
+            // 请求会导致主回答重复输出。直接抛出，不轮换 key（由用户重试整个请求）。
+            if (err instanceof VisionRoundError) {
+                logger.warn("key.visionRoundFailed", {
+                    key: maskApiKey(currentEntry.value),
+                    error: err.message,
+                });
+                throw err;
+            }
+            // 已向用户输出过内容（流中途失败）：换 key 重跑会把已显示的答案再输出
+            // 一遍。直接抛出，不轮换（与 commitMessageGenerator 的 response.length
+            // 保护一致）。
+            if (params.hasEmittedOutput?.()) {
+                logger.warn("key.rotationSkippedAfterOutput", {
+                    key: maskApiKey(currentEntry.value),
+                    error: err instanceof Error ? err.message : String(err),
+                });
+                throw err;
+            }
+            // 错误分类（errorRules 四元组：code + message + statusCode + action）
+            const rule = matchErrorRule(err);
+            if (rule?.action === "rotateCooldown" || rule?.action === "rotatePersist") {
+                // 换 key（冷却或持久化失效，由 action 决定）
+                const reason = rule.message ?? rule.code ?? "";
+                failedKeys.set(currentEntry.value, rule);
+                await markApiKeyExhausted(secrets, currentEntry.value, reason, rule.action);
                 logger.warn("key.rotation", {
                     key: maskApiKey(currentEntry.value),
                     reason,
+                    action: rule.action,
                     error: err instanceof Error ? err.message : String(err),
                 });
                 continue; // try next key
             }
 
-            // Platform-side transient error that is NOT a key problem
-            // (e.g. 500 Internal Server Error — the key is fine, the platform
-            // is having trouble). Do NOT mark the key or rotate: just back off
-            // and retry the whole round with the same key.
-            if (isTransientRetryError(err)) {
+            if (rule?.action === "retrySameKey") {
+                // 不换 key，退避后重试同一个 key（平台侧/客户端侧瞬态问题）
                 if (await tryTransientRetryRound(secrets, sameKeyRetryCount, maxTransientRetries)) {
                     sameKeyRetryCount++;
                     failedKeys.clear();
-                    // Force the SAME key on the next round: 500 is a platform
-                    // problem, not a key problem — do not rotate keys.
+                    // Force the SAME key on the next round: the error is a
+                    // platform/client-side problem, not a key problem.
                     forceKey = currentEntry;
                     logger.warn("key.transientRetrySameKey", {
                         key: maskApiKey(currentEntry.value),
@@ -240,7 +254,7 @@ export async function runKeyRotationLoop(params: RotationLoopParams): Promise<vo
                 });
             }
 
-            throw err; // non-rotation error (400/403/network/IMAGE_SENSITIVE…)
+            throw err; // 未命中任何规则（403/网络/IMAGE_SENSITIVE…）
         }
     }
 }

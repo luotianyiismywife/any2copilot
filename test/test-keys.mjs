@@ -122,7 +122,7 @@ await checkAsync("sticky：当前 key 失效后切到下一个并钉住", async 
     await reset(secrets, [K("a"), K("b"), K("c")]);
     await pickNextApiKey(secrets, "sticky"); // 钉住 a
     // a 失效（持久化不可用）
-    await markApiKeyExhausted(secrets, "a", "invalid");
+    await markApiKeyExhausted(secrets, "a", "无效 key", "rotatePersist");
     const next = await pickNextApiKey(secrets, "sticky");
     assert.equal(next.value, "b");
     const again = await pickNextApiKey(secrets, "sticky");
@@ -156,7 +156,7 @@ console.log("瞬态冷却");
 await checkAsync("冷却中的 key 被跳过（429 仅内存冷却）", async () => {
     const secrets = makeSecrets();
     await reset(secrets, [K("a"), K("b")]);
-    await markApiKeyExhausted(secrets, "a", "rate_limited"); // 瞬态 → 仅冷却
+    await markApiKeyExhausted(secrets, "a", "限流", "rotateCooldown"); // 瞬态 → 仅冷却
     const picked = await pickNextApiKey(secrets, "rotation");
     assert.equal(picked.value, "b");
 });
@@ -164,7 +164,7 @@ await checkAsync("冷却中的 key 被跳过（429 仅内存冷却）", async ()
 await checkAsync("markApiKeyAvailable 清除冷却", async () => {
     const secrets = makeSecrets();
     await reset(secrets, [K("a"), K("b")]);
-    await markApiKeyExhausted(secrets, "a", "rate_limited");
+    await markApiKeyExhausted(secrets, "a", "限流", "rotateCooldown");
     await markApiKeyAvailable(secrets, "a");
     const picked = await pickNextApiKey(secrets, "rotation");
     assert.equal(picked.value, "a");
@@ -196,12 +196,21 @@ await checkAsync("空 store 返回 undefined", async () => {
 // ---------------------------------------------------------------------------
 console.log("shouldSingleKeyFallbackSwitch");
 
-await checkAsync("仅 balance 原因返回 true", async () => {
+await checkAsync("仅 rotatePersist 原因返回 true", async () => {
     const secrets = makeSecrets();
     await reset(secrets, [K("a"), K("b")], 0);
-    assert.equal(await shouldSingleKeyFallbackSwitch(secrets, new Map([["a", "balance"]])), true);
-    assert.equal(await shouldSingleKeyFallbackSwitch(secrets, new Map([["a", "invalid"]])), false);
-    assert.equal(await shouldSingleKeyFallbackSwitch(secrets, new Map([["a", "rate_limited"]])), false);
+    assert.equal(
+        await shouldSingleKeyFallbackSwitch(secrets, new Map([["a", { action: "rotatePersist" }]])),
+        true,
+    );
+    assert.equal(
+        await shouldSingleKeyFallbackSwitch(secrets, new Map([["a", { action: "rotateCooldown" }]])),
+        false,
+    );
+    assert.equal(
+        await shouldSingleKeyFallbackSwitch(secrets, new Map([["a", { action: "retrySameKey" }]])),
+        false,
+    );
     assert.equal(await shouldSingleKeyFallbackSwitch(secrets, new Map()), false);
 });
 
@@ -240,18 +249,18 @@ await checkAsync("addApiKey 拒绝重复值", async () => {
     assert.equal(store.keys.length, 2);
 });
 
-await checkAsync("addApiKeys：已存在 key 更新 cookie 不重复添加", async () => {
+await checkAsync("addApiKeys：已存在 key 更新凭据不重复添加", async () => {
     const secrets = makeSecrets();
-    await reset(secrets, [K("a", { cookie: "old" })]);
+    await reset(secrets, [K("a", { credential: "old" })]);
     const result = await addApiKeys(secrets, [
-        { value: "a", cookie: "new" },
-        { value: "b", cookie: "c2" },
+        { value: "a", credential: "new" },
+        { value: "b", credential: "c2" },
     ]);
     assert.equal(result.added, 1);
     assert.equal(result.updated, 1);
     const store = await getApiKeyStore(secrets);
     assert.equal(store.keys.length, 2);
-    assert.equal(store.keys.find((k) => k.value === "a").cookie, "new");
+    assert.equal(store.keys.find((k) => k.value === "a").credential, "new");
 });
 
 await checkAsync("removeApiKey 修正 activeIndex", async () => {

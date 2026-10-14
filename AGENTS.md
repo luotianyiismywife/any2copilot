@@ -37,8 +37,8 @@
 | 能力 | 说明 |
 |------|------|
 | **Chat 模型提供商** | 实现 `LanguageModelChatProvider` 接口，向 VS Code 注册为厂商（vendor 由 `package.json` 声明，见移植指南 §1.2） |
-| **多 API Key 轮询** | 支持多个 API Key（SecretStorage 加密存储 `<prefix>.apiKeys`），三种模式：`sticky`（默认，固定使用一个 key，仅失效时切下一个并钉住——前缀缓存命中率最高，切换后不自动切回）/ `rotation`（轮询使用、跳过不可用 key）/ `single`（仅用当前 key；`<prefix>.singleKeyFallback`（默认 `switch`）下**仅在余额不足（402）时**自动切换到下一个可用 key 并经 `setActiveKeyByValue` 设为当前使用 + 右下角弹窗提示——401 无效 Key / 429 限流 / 503 繁忙等其他错误不切换、走 single 专属报错文案；`error` 下任何错误都直接报错不切换）。**被动检测**：按请求错误（402 余额不足 / 401 无效 Key / 429 限流 / 503 服务端繁忙，状态码与文本 patterns 均可配置）判定 key 失效并切换——**402/401 持久化 `available=false`（确定性），429/503 仅内存冷却不持久化（瞬态，冷却到期自动恢复）**。**手动检测**：`<prefix>.manageApiKeys` 命令 QuickPick 管理（增删/设为当前/绑定 cookie/重置失效/检测可用性——最小真实聊天请求 `say ok`，实测余额不足时 402 拦截不耗 token）。**UI 增强**：表单式批量导入（三元组 key/cookie/备注）、检测二级界面、编辑 API Key（三字段 value/cookie/label，冲突校验）、**轮询模式下隐藏"设为当前使用"**、批量导入时已存在 key 自动更新 cookie 不重复添加、**所有 key 管理界面均显示账号余额**（登录 token 经 `getAccountInfoCached` TTL 缓存查询账号信息端点，余额按**账号**粒度、所有 key 共享）。**全部 key 用尽时**：轮换循环跟踪每个 key 的失败原因，报错列出脱敏 key + 原因（如 `sk_****abcd: 服务端繁忙 (503)`），并区分"瞬态失败请稍后重试"（429/503）与"确定性失败请检测"（402/401）。**瞬态自动重试**：全部 key 均因瞬态错误（默认 429/500/503，状态码可配置 `<prefix>.transientRetryStatusCodes`，与触发轮换的状态码解耦）失败时，按 `<prefix>.transientRetryTimes`（默认 3）自动重试整轮——指数退避等待（2s/4s/8s，上限 8s）且**重试前清空瞬态冷却**，重试次数用尽后才报错。**平台侧错误不换 key**：500 Internal Server Error 是平台问题而非 key 问题——它命中瞬态重试但**不**命中轮换状态码，因此**不标记 key、不换 key**，仅退避后重试同一个 key。旧版单 key `<prefix>.apiKey` 自动迁移。实现见 `src/keys/` |
-| **云同步（GitHub Gist）** | key/cookie/备注 三元组跨机器云同步：使用 VS Code 内置的 GitHub 登录（`vscode.authentication.getSession("github", ["gist"])`，无需 PAT）获取 token，将三元组存储到一个**私密 Gist**（`public: false`）。**手动推送**（`<prefix>.syncPush`）/ **手动拉取**（`<prefix>.syncPull`）/ **启动自动拉取**（`<prefix>.cloudSyncAutoPull`，默认开启，未登录时静默跳过）/ **自动推送**（`<prefix>.cloudSyncAutoPush`，默认关闭，key 管理操作后去抖 2.5s 静默推送，本地与云端一致时短路不写 Gist）。**合并策略（拉取）**：云端为源——按 key 值对齐，云端条目覆盖本地 cookie/label；**可用性状态为本地数据不同步**。**时间戳口径统一**：push 记录服务端 `updated_at`（与 pull 侧一致），消除客户端时钟偏差导致的 push 后必然多拉一次。**跨窗口锁**：`globalState` 的 `<prefix>.cloudSyncLockUntil` 防止两窗口同时写 Gist。实现集中在 `src/cloud/cloudSync.ts` + `src/cloud/syncPayload.ts` |
+| **多 API Key 轮询** | 支持多个 API Key（SecretStorage 加密存储 `<prefix>.apiKeys`），三种模式：`sticky`（默认，固定使用一个 key，仅失效时切下一个并钉住——前缀缓存命中率最高，切换后不自动切回）/ `rotation`（轮询使用、跳过不可用 key）/ `single`（仅用当前 key；`<prefix>.singleKeyFallback`（默认 `switch`）下**仅在当前 key 命中 `rotatePersist`（确定性失败：余额不足/无效 key/封号）时**自动切换到下一个可用 key 并经 `setActiveKeyByValue` 设为当前使用 + 右下角弹窗提示——`rotateCooldown`（429/503 瞬态）不切换、走 single 专属报错文案；`error` 下任何错误都直接报错不切换）。**被动检测**：**只配置 `<prefix>.errorRules` 一处**（四元组：code + message + statusCode + action，`src/keys/config.ts` 的 `getErrorRules`）。按数组顺序匹配，首个命中即生效：`code`（错误体 error.code 精确匹配，**主要匹配字段**）优先于 `statusCode`（HTTP 状态码兜底）；`message` 仅作可读性说明**不参与匹配**。`action` 与 key 状态一一对应：`retrySameKey` → 状态不变（不换 key，退避后重试同一个 key）、`rotateCooldown` → 冷却中（换 key，仅内存冷却，到期自动恢复）、`rotatePersist` → 不可用（换 key，持久化 available=false）。默认规则基于实测：封号（`code=billing`，400）→ 不可用；上游流中断（`code=upstream_stream_error`，400）→ 不换重试；余额不足（`code=INSUFFICIENT_BALANCE`，402）→ 不可用；限流（429/503）→ 冷却。**手动检测**：`<prefix>.manageApiKeys` 命令 QuickPick 管理（增删/设为当前/绑定平台登录凭据/重置失效/检测可用性——最小真实聊天请求 `say ok`，实测余额不足时 402 拦截不耗 token）。**UI 增强**：表单式批量导入（三元组 key/凭据/备注）、检测二级界面、编辑 API Key（三字段 value/凭据/label，冲突校验）、**轮询模式下隐藏"设为当前使用"**、批量导入时已存在 key 自动更新凭据不重复添加、**所有 key 管理界面均显示账号余额**（key 绑定的平台登录凭据经 `getAccountInfoCached` TTL 缓存查询账号信息端点，余额按**账号**粒度、所有 key 共享）。**全部 key 用尽时**：轮换循环跟踪每个 key 命中的 `ErrorRule`，报错列出脱敏 key + 原因（如 `sk_****abcd: 服务端繁忙`），并区分"瞬态失败请稍后重试"（`rotateCooldown`）与"确定性失败请检测"（`rotatePersist`）。**瞬态自动重试**：全部 key 均因 `rotateCooldown` 规则失败时，按 `<prefix>.transientRetryTimes`（默认 3）自动重试整轮——指数退避等待（2s/4s/8s，上限 8s）且**重试前清空瞬态冷却**，重试次数用尽后才报错。**平台侧错误不换 key**：`retrySameKey` 规则（如 500 Internal Server Error、`upstream_stream_error`）是平台/客户端侧问题而非 key 问题——**不标记 key、不换 key**，仅退避后重试同一个 key。旧版单 key `<prefix>.apiKey` 自动迁移。实现见 `src/keys/` |
+| **云同步（GitHub Gist）** | key/凭据/备注 三元组跨机器云同步：使用 VS Code 内置的 GitHub 登录（`vscode.authentication.getSession("github", ["gist"])`，无需 PAT）获取 token，将三元组存储到一个**私密 Gist**（`public: false`）。**手动推送**（`<prefix>.syncPush`）/ **手动拉取**（`<prefix>.syncPull`）/ **启动自动拉取**（`<prefix>.cloudSyncAutoPull`，默认开启，未登录时静默跳过）/ **自动推送**（`<prefix>.cloudSyncAutoPush`，默认关闭，key 管理操作后去抖 2.5s 静默推送，本地与云端一致时短路不写 Gist）。**合并策略（拉取）**：云端为源——按 key 值对齐，云端条目覆盖本地凭据/label；**可用性状态为本地数据不同步**。**时间戳口径统一**：push 记录服务端 `updated_at`（与 pull 侧一致），消除客户端时钟偏差导致的 push 后必然多拉一次。**跨窗口锁**：`globalState` 的 `<prefix>.cloudSyncLockUntil` 防止两窗口同时写 Gist。**向后兼容**：旧字段名 `cookie` 与 `credential` 等价（`readEntryCredential`）。实现集中在 `src/cloud/cloudSync.ts` + `src/cloud/syncPayload.ts` |
 | **多模型支持** | 内置模型定义（`src/models/models.ts` 的 `BUILT_IN_MODELS`，**移植时替换为你平台的模型**），统一通过推理强度选择器切换思考模式。支持自动模型发现：开启后从 API 获取模型列表，自动过滤不可用模型并发现新增模型 |
 | **自动模型发现** | 通过 `<prefix>.enableAutoModelDiscovery` 配置（默认开启）。启动时从 `/v1/models` 获取当前可用模型 ID 列表及能力标记，过滤内置模型列表（不可用模型自动隐藏）。新增模型元数据以 **`/v1/models` 完整元数据为主源**，models.dev 仅提供友好名称与回退规格；两源均未知输出上限时不发送 `max_completion_tokens`（交由服务端默认值）。`thinkingMode` 从 `supports_reasoning` 推断。API 不可用时静默回退到全量内置列表。内存缓存（5 分钟 TTL）。**按 API 模式过滤**：`anthropic` 仅显示 `supports_anthropic=true` 的模型，`responses` 仅显示 `supports_responses=true` 的模型。**动态刷新**：通过 `onDidChangeLanguageModelChatInformation` 事件（VS Code 1.125+），切换 `apiMode` / `enableAutoModelDiscovery` 设置时自动刷新选择器，**无需 reload 窗口** |
 | **启动模型同步** | 通过 `<prefix>.syncModelsOnStartup` 配置（默认开启）。每次 VS Code 打开时自动检查 API 是否有新模型，**每日最多同步一次**（`globalState` 记录上次同步日期）。同步结果以**一行日志**输出到输出通道，**不写任何文件** |
@@ -46,7 +46,7 @@
 | **流式推理** | 支持 SSE (Server-Sent Events) 流式响应，实时输出文本和工具调用 |
 | **Thinking/推理** | 支持模型的推理过程展示 ("thinking" 状态)，包括 XML think 块解析 |
 | **工具调用 (Tool Calling)** | 支持 VS Code 的 LanguageModelToolCallPart 机制 |
-| **图片代理 (Tool-based)** | 为不支持视觉的模型注入 `ask_image` 工具，模型可自主选择调用视觉模型回答关于图片的具体问题，支持多轮 API 请求完成"调用工具→提问→获取答案→继续回答"的完整流程。视觉模型 ID、查询提示词和思考模式均可通过设置配置。**跨轮视觉历史持久化**：每轮视觉代理完成后输出私有 MIME（`application/vnd.copilot-provider.vision-tool-history+json`）的 `LanguageModelDataPart`，VS Code 自动带入下一轮对话；下次请求 `convertMessages` 识别该 DataPart 并重建标准 tool call + tool result 消息 |
+| **图片代理 (Tool-based)** | 为不支持视觉的模型注入 `ask_image` 工具，模型可自主选择调用视觉模型回答关于图片的具体问题，支持多轮 API 请求完成"调用工具→提问→获取答案→继续回答"的完整流程。视觉模型 ID、查询提示词和思考模式均可通过设置配置。**跨轮视觉历史持久化**：每轮视觉代理完成后输出私有 MIME（`application/vnd.copilot-provider.vision-tool-history+json`）的 `LanguageModelDataPart`，VS Code 自动带入下一轮对话；下次请求 `convertMessages` 识别该 DataPart 并重建标准 tool call + tool result 消息。**递归守卫**：`isVisionCapableModelId` 检测 `visionProxyModel` 指向非视觉模型（或与主模型相同）时提示并返回，避免视觉请求再次触发 ask_image 代理 → 递归。**轮内失败不换 key**：视觉代理轮次请求失败包装为 `VisionRoundError`，轮换循环识别后直接抛出（主请求已成功，换 key 重跑会重复输出主回答）。`visionMaxRounds` 代码夹取 [1,20] |
 | **上下文窗口声明** | `maxInputTokens` 按真实上下文窗口的**可配置比例**声明（默认 `1.0`，可通过 `<prefix>.maxInputTokensRatio` 调整，范围 0.1–1.0，**建议 0.8**）。VS Code agent 模式的自动压缩在比例 0.8 时于真实上下文的约 **72%** 处触发。`context_length` / `max_completion_tokens` 保持真实值不变（用于 API 请求体） |
 | **Token 计数** | 使用 `o200k_base` tiktoken 分词器精确统计 token 用量 |
 | **原生 Token 指示器** | 始终启用，向 Copilot Chat 原生 Token 指示器报告 token 用量。通过发送 MIME 类型为 `usage` 的 `LanguageModelDataPart` 实现。依赖 VS Code/Copilot Chat 1.116+ |
@@ -56,7 +56,7 @@
 | **多仓库支持** | 支持多根工作区 (multi-root) 中多个 Git 仓库的提交消息生成 |
 | **模型预设** | 支持通过 `<prefix>.modelPreset` 设置切换 temperature/top_p 预设（🎯 Precise/⚖️ Balanced/🔥 Creative），也支持手动自定义输入 |
 | **国际化** | 内置简体中文 (zh-cn) 中英文双语界面 |
-| **重试机制** | **两层重试，职责分离**：① **HTTP 层**（`executeWithRetry`，`<prefix>.retry.*`）——同一请求退避重试，默认 2 次，仅覆盖**网关错误**（502/504）与网络错误；② **整轮层**（`tryTransientRetryRound`，`<prefix>.transientRetry*`）——重跑整个 key 轮换循环，默认 3 次，覆盖平台错误（429/500/503）。**两层刻意不重叠**。**换 key vs 不换 key**：命中 `<prefix>.apiKeyRotationStatusCodes`（默认 [401,402,429,503]）→ 换 key；命中 `<prefix>.transientRetryStatusCodes`（默认 [429,500,503]）但**不**命中换 key 状态码（如 500）→ 不换 key、退避后重试同一 key。**封号判定**：命中 `<prefix>.apiKeyBannedErrorPatterns`（默认 `["计费账户已被冻结", "\"code\":\"billing\"", "ref_code:400901"]`）→ `reason="banned"` 持久化失效。配置指南见 `docs/retry-and-key-rotation.md` |
+| **重试机制** | **两层重试，职责分离**：① **HTTP 层**（`executeWithRetry`，`<prefix>.retry.*`）——同一请求退避重试，默认 2 次，仅覆盖**网关错误**（502/504）与网络错误；② **整轮层**（`tryTransientRetryRound`，`<prefix>.transientRetryTimes`）——重跑整个 key 轮换循环，默认 3 次，覆盖 `rotateCooldown` 规则（429/503）。**两层刻意不重叠**。**换 key vs 不换 key**：错误命中 `errorRules` 的 `rotateCooldown`/`rotatePersist` → 换 key；命中 `retrySameKey`（如 500、`upstream_stream_error`）→ 不换 key、退避后重试同一 key。**封号判定**：`errorRules` 中 `code=billing`（默认）→ `rotatePersist` 持久化失效。配置指南见 `docs/retry-and-key-rotation.md` |
 | **请求延迟** | 可配置的请求间隔延迟，避免触发 API 限流 |
 | **超时控制** | 可配置的请求超时时间（默认 10 分钟） |
 | **立即取消** | 取消请求时通过 `reader.cancel()` 立即中断流式读取 |
@@ -190,17 +190,19 @@ provideLanguageModelChatResponse(model, messages, options, progress, token)
   │       ├── pickNextApiKey(secrets, apiKeyMode)
   │       │   ├── sticky → 环形扫描第一个可用 key，游标钉住不前移
   │       │   ├── rotation → 环形扫描第一个可用 key，游标前移
-  │       │   ├── single → active key；不可用且 fallback=switch 且原因为 balance → 降级 rotation
+  │       │   ├── single → active key；不可用且 fallback=switch 且本轮命中 rotatePersist → 降级 rotation
   │       │   └── 全部不可用 → 报错列出脱敏 key+原因
   │       ├── 用当前 key 构造 requestHeaders → executeApiRequest()
   │       ├── 成功 → break 循环；曾不可用 → 自愈置可用
-  │       └── 失败: isKeyRotationError(err)
-  │           ├── isTransientRetryError(err) → reason 规范化为瞬态（仅内存冷却）
-  │           ├── 402/401 → markApiKeyExhausted(持久化) + continue 换 key
-  │           ├── 429/503 → markApiKeyExhausted(仅内存冷却) + continue 换 key
-  │           ├── 取消/超时/其他错误 → 抛给外层 catch，不轮换
-  │           ├── 500 等平台侧瞬态错误 → 不标记 key、不换 key，退避后重试同一 key
-  │           └── failedKeys.size >= keys.length → 报错；瞬态且未达上限 → 清冷却 + 退避 + 重试整轮
+  │       └── 失败: matchErrorRule(err)（errorRules 四元组：code 精确匹配优先于 statusCode 兜底）
+  │           ├── action=rotateCooldown → markApiKeyExhausted(仅内存冷却) + continue 换 key
+  │           ├── action=rotatePersist → markApiKeyExhausted(持久化 available=false) + continue 换 key
+  │           ├── action=retrySameKey → 不换 key，退避后重试同一个 key（平台侧/客户端侧瞬态问题）
+  │           ├── VisionRoundError → 直接抛出，不轮换（视觉代理轮内失败，换 key 会重复输出主回答）
+  │           ├── hasEmittedOutput() → 直接抛出，不轮换（已向用户输出部分内容，重跑会重复）
+  │           ├── 取消/超时 → 抛给外层 catch
+  │           ├── 未命中任何规则（403/网络/IMAGE_SENSITIVE）→ 抛给外层 catch，不轮换
+  │           └── failedKeys.size >= keys.length → 报错；含 rotateCooldown 且未达上限 → 清冷却 + 退避 + 重试整轮
   │
   ├── 10. 根据 apiMode 路由（executeApiRequest）:
   │     ├── OpenAI: convertMessages → prepareRequestBody → POST /chat/completions
@@ -280,10 +282,12 @@ provideLanguageModelChatResponse(model, messages, options, progress, token)
   ├── 4. processDelta() / processAnthropicChunk() / processResponsesEvent() 拦截
   │      ask_image 和 ask_with_multi_image 被缓存到 interceptedToolCall
   │
-  └── 5. handleInterceptedToolCall() 循环（多轮追问，最多 visionMaxRounds 次）
+  └── 5. handleInterceptedToolCall() 循环（多轮追问，最多 visionMaxRounds 次，代码夹取 [1,20]）
+         ├── 递归守卫：visionProxyModel 指向非视觉模型（或与主模型相同）→ 提示并返回
          ├── 发出 thinking 块 + 视觉模型流式输出
          ├── 输出跨轮视觉历史 DataPart（VS Code 自动带入下一轮对话）
          ├── 构建 assistant tool_call + tool result 消息并再次请求
+         ├── 轮次失败 → 包装为 VisionRoundError（轮换循环直接抛出，不换 key）
          └── 若模型再次调用 ask_image → 继续循环
 
 跨轮恢复（下一轮请求的 convertMessages）:
@@ -368,7 +372,7 @@ src/
 │   ├── registerCommands.ts               # 全部命令注册 + 配置变更监听
 │   ├── apiKeyManagerUi.ts                # manageApiKeys 主入口
 │   ├── apiKeyDisplay.ts                  # key 展示辅助（余额格式化 / 详情行 / QuickPick 项）
-│   ├── apiKeyFlows.ts                    # key 管理交互流程（增删改/导入/检测/cookie）
+│   ├── apiKeyFlows.ts                    # key 管理交互流程（增删改/导入/检测/凭据）
 │   └── checkUsageCommand.ts              # 套餐用量刷新（仅状态栏点击，命令面板隐藏）
 ├── core/                                 # 基础设施
 │   ├── logger.ts                         # 日志系统
@@ -425,6 +429,24 @@ docs/
 ├── retry-and-key-rotation.md             # 重试与 Key 轮换配置指南（换 key / 不换 key）
 └── vscode-dev-notes.md                   # VS Code 开发经验（浏览器自动化 / MCP / 市场上传）
 test/                                     # 测试脚本（运行前需 npm run compile）
+├── test-plan-usage.mjs                   # 套餐用量快照测试
+├── test-transient-retry.mjs              # 错误分类规则测试（errorRules 四元组）
+├── test-keys.mjs                         # Key 选择与状态测试
+├── test-rotation.mjs                     # 轮换循环测试
+├── test-banned-rotation.mjs              # 封号检测与轮换测试
+├── test-vision-history.mjs               # 跨轮视觉历史编解码 + 双 API 转换器闭环
+├── test-anthropic-tool-result-merge.mjs  # Anthropic 连续工具结果合并
+├── test-anthropic-image-index.mjs        # Anthropic 图片索引顺序（回归：延迟分配导致索引错位）
+├── test-anthropic-vision-order.mjs       # Anthropic 视觉历史顺序（回归：先推视觉历史导致顺序颠倒）
+├── test-image-dimensions.mjs             # 图片尺寸解析（回归：PNG 签名检测错误）
+├── test-sse-stream.mjs                   # SSE 流消费（回归：无 [DONE] 时工具调用被丢弃）
+├── test-split-tool-call-args.mjs         # 工具调用参数拆分/分桶回归
+├── test-batch-import.mjs                 # 批量导入解析器
+├── test-cloud-sync-auto-push.mjs         # 云同步 payload 去重
+├── test-cloud-sync-flow.mjs              # 云同步 push/pull 集成
+├── test-cloud-sync-e2e.mjs               # 云同步真实端到端（需 gist 凭据）
+├── api-tests.mjs                         # 三协议联网测试（需真实 API Key）
+└── README.md                             # 测试说明
 .copilot/
 ├── api-reference.md                      # 平台 API 实测参考（移植时按此方法探测新平台）
 └── build-log.md                          # 编译日志（自动生成，gitignore）
@@ -447,11 +469,11 @@ test/                                     # 测试脚本（运行前需 npm run 
 | `provider/rotation.ts` | `runKeyRotationLoop()`：多 key 轮换循环 |
 | `provider/apiDispatch.ts` | `executeApiRequest()`：三协议分发、请求体构建、流式处理、零正文检测 |
 | `provider/visionRounds.ts` | `handleInterceptedToolCall()`：ask_image 图片代理多轮 |
-| `provider/errors.ts` | `REASON_TEXT` / `buildAllKeysUnavailableDetail` / `tryTransientRetryRound` / `checkZeroAnswerBudgetExhausted` / `reportNativeUsage` / `getRequestedReasoningEffort` |
+| `provider/errors.ts` | `VisionRoundError`（视觉代理轮内失败标记，不触发 key 轮换）/ `REASON_TEXT` / `buildAllKeysUnavailableDetail` / `tryTransientRetryRound` / `checkZeroAnswerBudgetExhausted` / `reportNativeUsage` / `getRequestedReasoningEffort` |
 | `keys/keyManager.ts` | barrel：统一导出 `keys/` 下全部 API |
-| `keys/store.ts` | SecretStorage 读写与旧版单 key 迁移、增删改 |
-| `keys/selection.ts` | `getPrimaryApiKey` / `pickNextApiKey` / `shouldSingleKeyFallbackSwitch` / `setActiveKeyByValue` |
-| `keys/health.ts` | 瞬态冷却、轮换错误判定、失效原因、状态更新 |
+| `keys/store.ts` | SecretStorage 读写与旧版单 key 迁移、增删改（含缓存语义比较） |
+| `keys/selection.ts` | `getPrimaryApiKey` / `pickNextApiKey` / `shouldSingleKeyFallbackSwitch` / `setActiveKeyByValue` / `pickAccountCredential` / `getAccountCredential` |
+| `keys/health.ts` | 瞬态冷却、`matchErrorRule`（errorRules 四元组）、失效原因、状态更新 |
 | `keys/availability.ts` | `testKeyAvailability`（最小真实聊天请求） |
 | `balance/balanceCheck.ts` | barrel：统一导出 `balance/` 下全部 API |
 | `balance/config.ts` | 余额阈值 / TTL 配置读取 + `toNumber` |
@@ -474,7 +496,7 @@ test/                                     # 测试脚本（运行前需 npm run 
 | `core/versionManager.ts` | 扩展版本信息 |
 | `ui/statusBar.ts` | 状态栏创建、更新、套餐用量渲染、后台轮询 |
 | `cloud/cloudSync.ts` | 云同步（GitHub Gist）：`pushToCloud` / `pullFromCloud` / `autoPullOnStartup` / `registerCloudSyncAutoPush` / `flushPendingAutoPush` |
-| `cloud/syncPayload.ts` | 纯函数 `syncPayloadHasChanged`：比较本地/云端 Gist payload（供 Node 回归测试与云同步去重逻辑共用） |
+| `cloud/syncPayload.ts` | 纯函数 `syncPayloadHasChanged` / `readEntryCredential`（兼容旧字段名 cookie）：比较本地/云端 Gist payload（供 Node 回归测试与云同步去重逻辑共用） |
 | `gitCommit/commitMessageGenerator.ts` | Git 提交消息生成逻辑（多 key 轮换循环） |
 | `gitCommit/gitUtils.ts` | Git 命令封装 |
 | `tokenizer/tokenizerManager.ts` | o200k_base 分词器管理 (含 LRU 缓存) |
@@ -513,6 +535,7 @@ test/                                     # 测试脚本（运行前需 npm run 
 | `src/balance/accountInfo.ts` → `queryAccountInfo()` | 账号信息端点 + 响应字段映射（填充 `AccountInfo`） |
 | `src/balance/accountInfo.ts` → `POINTS_PER_CNY` | 代金券积分换算比例（各平台不同，务必实测） |
 | `src/balance/planUsage.ts` → `buildSnapshot()` | **已是通用逻辑**；仅当平台窗口 key 命名不同时才需调整 `classifyWindow` |
+| `src/keys/config.ts` → `DEFAULT_ERROR_RULES` | 错误分类规则默认值：`code`（错误体 error.code）为示例，按你平台替换；`statusCode` 兜底为通用 HTTP 语义 |
 
 > **两种数据格式均支持**：`usageInfos` 为空 → 状态栏只显示余额行；有窗口 → 归一化 5h/周/月。
 > 若新平台无账号/余额概念，让 `queryAccountInfo()` 抛错即可——UI 显示"余额未知"，其余功能不受影响。
@@ -526,7 +549,7 @@ test/                                     # 测试脚本（运行前需 npm run 
 - [ ] `thinking` / `reasoning_effort` 参数的合法取值（各平台差异极大，400 就是对拍点）
 - [ ] 流式 SSE 事件格式是否标准（`data: {...}` / `[DONE]`）
 - [ ] 余额/套餐端点：响应结构、积分单位（**1 元 = 多少积分**，各平台不同，别混用）
-- [ ] 限流特征：429/402/401 的语义与返回体（`src/keys/config.ts` 的错误 patterns）
+- [ ] 限流特征：429/402/401 的语义与返回体（`src/keys/config.ts` 的 `errorRules` 四元组）
 - [ ] 是否支持 prompt cache（影响 README 的额度说明）
 
 ### 4.4 可裁剪模块
@@ -604,13 +627,13 @@ test/                                     # 测试脚本（运行前需 npm run 
 
 > `keys/keyManager.ts` 为 barrel，统一导出以下模块的全部 API。
 
-- `keys/config.ts`：`getApiKeyMode` / `getRotationCursorIndex` / `getSingleKeyFallback` / `getRotationStatusCodes` / `getRotationErrorPatterns` / `getBannedErrorPatterns` / `getTransientRetryStatusCodes` / `getExhaustedCooldownMin` / `getTransientRetryTimes`
-- `keys/store.ts`：`getApiKeyStore` / `saveApiKeyStore` / `invalidateApiKeyStoreCache` / `addApiKey` / `addApiKeys` / `removeApiKey` / `setActiveKey` / `setKeyCookie` / `updateApiKey`
+- `keys/config.ts`：`getApiKeyMode` / `getRotationCursorIndex` / `getSingleKeyFallback` / `getErrorRules`（errorRules 四元组）/ `getExhaustedCooldownMin` / `getTransientRetryTimes`；类型 `ErrorAction` / `ErrorRule`
+- `keys/store.ts`：`getApiKeyStore` / `saveApiKeyStore` / `invalidateApiKeyStoreCache` / `addApiKey` / `addApiKeys` / `removeApiKey` / `setActiveKey` / `setKeyCredential` / `updateApiKey`
 - `keys/state.ts`：`getStoreCache` / `setStoreCache` / `getRotationIndex` / `setRotationIndex` / `getTransientExhaustedMap` / `onApiKeyStoreChanged` / `notifyApiKeyStoreChanged`
-- `keys/selection.ts`：`getPrimaryApiKey` / `pickNextApiKey` / `shouldSingleKeyFallbackSwitch` / `setActiveKeyByValue`
-- `keys/health.ts`：`getTransientExhaustedInfo` / `isApiKeyEligible` / `hasTransientExhaustedKey` / `isKeyRotationError` / `isTransientRetryError` / `isTransientExhaustedReason` / `getKeyRotationReason` / `getKeyUnavailableReason` / `markApiKeyExhausted` / `markApiKeyAvailable` / `updateKeyAvailability` / `resetExhaustedKeys` / `getKeyDisplayStatus`
+- `keys/selection.ts`：`getPrimaryApiKey` / `pickNextApiKey` / `shouldSingleKeyFallbackSwitch` / `setActiveKeyByValue` / `pickAccountCredential` / `getAccountCredential`
+- `keys/health.ts`：`getTransientExhaustedInfo` / `isApiKeyEligible` / `hasTransientExhaustedKey` / `matchErrorRule`（errorRules 四元组匹配）/ `isKeyRotationError` / `isTransientRetryError` / `getKeyRotationReason` / `getKeyUnavailableReason` / `markApiKeyExhausted`（按 action 决定冷却/持久化）/ `markApiKeyAvailable` / `updateKeyAvailability` / `resetExhaustedKeys` / `getKeyDisplayStatus`
 - `keys/availability.ts`：`testKeyAvailability`（最小真实聊天请求）
-- `keys/mask.ts`：`maskApiKey` / `maskCookie`
+- `keys/mask.ts`：`maskApiKey` / `maskCredential`
 
 ### 5.5 `src/provider/` 模块
 
@@ -619,15 +642,15 @@ test/                                     # 测试脚本（运行前需 npm run 
 - `rotation.ts`：`runKeyRotationLoop(params)`
 - `apiDispatch.ts`：`executeApiRequest(params)`
 - `visionRounds.ts`：`handleInterceptedToolCall(params)`
-- `errors.ts`：`REASON_TEXT` / `checkZeroAnswerBudgetExhausted` / `buildAllKeysUnavailableDetail` / `tryTransientRetryRound` / `reportNativeUsage` / `getRequestedReasoningEffort`
+- `errors.ts`：`VisionRoundError`（视觉代理轮内失败标记，不触发 key 轮换）/ `REASON_TEXT` / `checkZeroAnswerBudgetExhausted` / `buildAllKeysUnavailableDetail` / `tryTransientRetryRound` / `reportNativeUsage` / `getRequestedReasoningEffort`
 
 ### 5.6 `src/api/` 模块
 
-- `commonApi.ts`：`CommonApi<TMessage,TRequestBody>` 抽象基类（`convertMessages` / `prepareRequestBody` / `processStreamingResponse` / `tryEmitBufferedToolCall` / `flushToolCallBuffers` / `collectLocalImages` / `applyTemperature` / `mergeExtraParams` / `runSseStream` / `prepareHeaders`）
-- `sse.ts`：`iterateSseEvents` / `consumeSseStream`
+- `commonApi.ts`：`CommonApi<TMessage,TRequestBody>` 抽象基类（`convertMessages` / `prepareRequestBody` / `processStreamingResponse` / `tryEmitBufferedToolCall` / `flushToolCallBuffers` / `collectLocalImages` / `applyTemperature` / `mergeExtraParams` / `runSseStream` / `prepareHeaders`）；工具调用按 `key`（id / index / auto）分桶，`_indexToId` 把仅带 index 的 args 碎片解析回同 tool_call 的 id 桶
+- `sse.ts`：`iterateSseEvents` / `consumeSseStream`（无 `[DONE]` 哨兵时也触发 `onDone` 刷新缓冲）
 - `httpClient.ts`：`postJson`
 - `openai/openaiApi.ts`：`OpenaiApi`（`convertMessages` / `prepareRequestBody` / `processStreamingResponse` / `createMessage`）
-- `anthropic/anthropicApi.ts`：`AnthropicApi`（同上 + 连续工具结果合并）
+- `anthropic/anthropicApi.ts`：`AnthropicApi`（同上 + 连续工具结果合并 + 图片索引按 part 顺序内联分配 + thinking 块置于 assistant 消息首位）
 - `responses/responsesApi.ts`：`ResponsesApi`（同上 + 结构化工具回填）
 
 ### 5.7 `src/models/` 模块
@@ -637,14 +660,14 @@ test/                                     # 测试脚本（运行前需 npm run 
 - `modelsDev.ts`：`ensureModelsDevLoaded` / `lookupModelDevEntry`
 - `visionModels.ts`：`resolveVisionCapability`
 - `modelSync.ts`：`syncModelsOnStartup`
-- `provideModel.ts`：`prepareLanguageModelChatInformation` / `getResponsesModelIds` / `getAnthropicModelIds` / `getAutoDiscoveredModelConfig`
+- `provideModel.ts`：`prepareLanguageModelChatInformation` / `getResponsesModelIds` / `getAnthropicModelIds` / `getAutoDiscoveredModelConfig` / `isVisionCapableModelId`
 
 ### 5.8 `src/commands/` 模块
 
 - `registerCommands.ts`：`registerCommands(context, provider)`
 - `apiKeyManagerUi.ts`：`showApiKeyManager(context)`
 - `apiKeyDisplay.ts`：`formatBalanceDetailText` / `fetchAccountInfo` / `buildKeyDetailLine` / `buildKeyQuickPickItems`
-- `apiKeyFlows.ts`：`KeyManagerContext` / `queryBalanceFlow` / `addKeyFlow` / `parseBatchImport` / `batchImportFlow` / `deleteKeysFlow` / `pickKey` / `checkAvailabilityFlow` / `checkAllAvailabilityFlow` / `showCheckMenu` / `bindCookieFlow` / `editKeyFlow`
+- `apiKeyFlows.ts`：`KeyManagerContext` / `addKeyFlow` / `parseBatchImport` / `batchImportFlow` / `deleteKeysFlow` / `pickKey` / `checkAvailabilityFlow` / `checkAllAvailabilityFlow` / `showCheckMenu` / `bindCredentialFlow` / `editKeyFlow`
 - `checkUsageCommand.ts`：`checkUsageCommand(context)`
 
 ### 5.9 `src/core/` 模块
@@ -652,19 +675,19 @@ test/                                     # 测试脚本（运行前需 npm run 
 - `logger.ts`：`Logger` 类（`init` / `debug` / `info` / `warn` / `error` / `sanitizeHeaders` / `dispose`）+ `logger` 单例
 - `localize.ts` ★：`l10n(key)` / `l10nFormat(template, ...args)`
 - `types.ts`：`ProviderModelItem` / `ModelPreset` / `RetryConfig` 等
-- `utils.ts`：`mapRole` / `convertToolsToOpenAI` / `createRetryConfig` / `executeWithRetry` / `isRetryableError` / `isImageMimeType` / `createDataUrl` / `arrayBufferToBase64` / `isToolResultPart` / `tryParseJSONObject` / `storeDataUriImages` / `replaceDataUriImages`
+- `utils.ts`：`mapRole` / `convertToolsToOpenAI` / `createRetryConfig` / `executeWithRetry` / `isRetryableError` / `isImageMimeType` / `createDataUrl` / `arrayBufferToBase64` / `isToolResultPart` / `tryParseJSONObject` / `parseToolCallArguments`（容错解析）/ `repairJsonText`（JSON 修复）/ `splitToolCallArguments`（拆分拼接 JSON）/ `storeDataUriImages` / `replaceDataUriImages`
 - `versionManager.ts`：`VersionManager`（`getVersion` / `getUserAgent` / `getClientInfo`）
 
 ### 5.10 `src/ui/statusBar.ts`
 
-- `initStatusBar(context, getLoginToken?)` / `showTokenStatusBar` / `scheduleStatusBarHide` / `refreshPlanUsageNow`
+- `initStatusBar(context, getCredential?)` / `showTokenStatusBar` / `scheduleStatusBarHide` / `refreshPlanUsageNow`
 - `formatTokenCount` / `createProgressBar` / `updateContextStatusBar` / `updateStatusBarWithApiPrompt`
 - `resetCumulativeCounters` / `recordUsage` / `updateCumulativeTooltip`
 
 ### 5.11 `src/cloud/` 模块
 
 - `cloudSync.ts`：`pushToCloud(context, silent?)` / `pullFromCloud(context, silent?)` / `autoPullOnStartup(context)` / `registerCloudSyncAutoPush(context)` / `flushPendingAutoPush()`
-- `syncPayload.ts`：`syncPayloadHasChanged(local, remote)` + 类型 `SyncedKeyEntry` / `SyncPayload`
+- `syncPayload.ts`：`syncPayloadHasChanged(local, remote)` / `readEntryCredential(entry)`（兼容旧字段名 cookie）+ 类型 `SyncedKeyEntry` / `SyncPayload`
 
 ### 5.12 `src/gitCommit/` 模块
 

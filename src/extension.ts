@@ -7,6 +7,7 @@ import { TokenizerManager } from "./tokenizer/tokenizerManager";
 import { syncModelsOnStartup } from "./models/modelSync";
 import { autoPullOnStartup, flushPendingAutoPush, registerCloudSyncAutoPush } from "./cloud/cloudSync";
 import { registerCommands } from "./commands/registerCommands";
+import { getAccountCredential } from "./keys/keyManager";
 
 /**
  * 扩展激活入口。
@@ -28,11 +29,11 @@ export function activate(context: vscode.ExtensionContext) {
     // Initialize TokenizerManager with extension path
     TokenizerManager.initialize(context.extensionPath);
 
-    // Login PASETO token (60-day validity) lives in globalState — shared with
-    // the API-key manager UI and the plan-usage status bar.
-    const getLoginToken = (): string | undefined => context.globalState.get<string>("any2copilot.loginToken");
+    // Platform login credential (for balance / plan-usage queries) is bound to
+    // each API key (ApiKeyEntry.credential) — no global login token.
+    const getCredential = (): Promise<string | undefined> => getAccountCredential(context.secrets);
 
-    const tokenCountStatusBarItem: vscode.StatusBarItem = initStatusBar(context, getLoginToken);
+    const tokenCountStatusBarItem: vscode.StatusBarItem = initStatusBar(context, getCredential);
     const provider = new ChatModelProvider(context.secrets, tokenCountStatusBarItem);
 
     // Register the provider under the vendor id used in package.json

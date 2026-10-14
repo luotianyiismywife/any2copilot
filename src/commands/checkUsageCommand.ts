@@ -11,6 +11,7 @@ import * as vscode from "vscode";
 import { l10n, l10nFormat } from "../core/localize";
 import { logger } from "../core/logger";
 import { LOGIN_TOKEN_SOURCE_HINT } from "../platform/platformConfig";
+import { getAccountCredential } from "../keys/keyManager";
 import {
     formatUsageSummary,
     getPlanUsageFetchStatus,
@@ -21,14 +22,14 @@ import { refreshPlanUsageNow } from "../ui/statusBar";
  * 套餐用量查询命令。
  *
  * 错误区分：
- * - 未配置登录 token → 提示先在「管理 API Keys」设置
- * - 401 token 失效 → 提示重新复制
+ * - 未绑定平台登录凭据 → 提示先在「管理 API Keys」绑定
+ * - 401 凭据失效 → 提示重新复制
  * - 一般失败 → 提示查看输出通道
  */
 export async function checkUsageCommand(context: vscode.ExtensionContext): Promise<void> {
-    const getLoginToken = (): string | undefined => context.globalState.get<string>("any2copilot.loginToken");
-    if (!getLoginToken()) {
-        vscode.window.showInformationMessage(l10n("No login token configured. Set it via the Manage API Keys command first."));
+    const credential = await getAccountCredential(context.secrets);
+    if (!credential) {
+        vscode.window.showInformationMessage(l10n("No platform login credential bound. Bind one to a key via the Manage API Keys command first."));
         return;
     }
 
@@ -45,7 +46,7 @@ export async function checkUsageCommand(context: vscode.ExtensionContext): Promi
         logger.warn("planUsage.checkUsage.failed", { status, hasStale: snapshot !== null });
         if (status === "unauthorized") {
             vscode.window.showErrorMessage(
-                l10nFormat("Login token expired. Copy a fresh token from the browser ({0}).", LOGIN_TOKEN_SOURCE_HINT),
+                l10nFormat("Login credential expired. Copy a fresh credential from the browser ({0}).", LOGIN_TOKEN_SOURCE_HINT),
             );
         } else {
             vscode.window.showErrorMessage(l10n("Failed to fetch plan usage. See the extension output channel for details."));

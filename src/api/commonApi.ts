@@ -9,7 +9,7 @@ import {
     CancellationToken,
 } from "vscode";
 import { ProviderModelItem } from "../core/types";
-import { tryParseJSONObject, isImageMimeType, isToolResultPart, storeDataUriImages } from "../core/utils";
+import { isImageMimeType, isToolResultPart, storeDataUriImages, parseToolCallArguments, splitToolCallArguments } from "../core/utils";
 import { VersionManager } from "../core/versionManager";
 import type { InterceptedToolCall, StoredImage } from "../vision/types";
 import { ASK_IMAGE_TOOL_NAME, ASK_WITH_MULTI_IMAGE_TOOL_NAME } from "../vision/types";
@@ -26,23 +26,28 @@ export interface StreamUsage {
 }
 
 export abstract class CommonApi<TMessage, TRequestBody> {
-    /** Buffer for assembling streamed tool calls by index. */
-    protected _toolCallBuffers: Map<number, { id?: string; name?: string; args: string }> = new Map<
-        number,
+    /** Buffer for assembling streamed tool calls by `key` (id / index / auto). */
+    protected _toolCallBuffers: Map<string, { id?: string; name?: string; args: string }> = new Map<
+        string,
         { id?: string; name?: string; args: string }
     >();
 
-    /** Indices for which a tool call has been fully emitted. */
-    protected _completedToolCallIndices = new Set<number>();
+    /** Keys for which a tool call has been fully emitted. */
+    protected _completedToolCallIndices = new Set<string>();
+
+    /** Key of the most recently buffered tool call (fallback for chunks without id/index). */
+    protected _lastToolCallKey: string | undefined;
+
+    /** Maps stream `index` → tool-call `id` seen in the same call. OpenAI-compatible
+     *  endpoints emit each tool call's first chunk with `{index, id, name}` and later
+     *  argument fragments with only `{index, arguments}` (no id). Without this map, the
+     *  id-carrying chunk goes to the id bucket while argument fragments go to a separate
+     *  index bucket, so neither bucket ever has both name and args. Resolving index → id
+     *  keeps every fragment of one parallel call in the same bucket. */
+    protected _indexToId = new Map<string, string>();
 
     /** Track if we emitted any assistant text before seeing tool calls (SSE-like begin-tool-calls hint). */
     protected _hasEmittedAssistantText = false;
-
-    /** Track if we emitted any text. */
-    protected _hasEmittedText = false;
-
-    /** Track if we emitted any thinking text. */
-    protected _hasEmittedThinking = false;
 
     /** Finish/stop reason of the most recent stream (e.g. "length", "max_tokens"),
      *  used to detect budget exhaustion with zero answer text. */
@@ -59,7 +64,6 @@ export abstract class CommonApi<TMessage, TRequestBody> {
 
     // XML think block parsing state
     protected _xmlThinkActive = false;
-    protected _xmlThinkDetectionAttempted = false;
 
     // Thinking content state management
     protected _currentThinkingId: string | null = null;
@@ -189,14 +193,14 @@ export abstract class CommonApi<TMessage, TRequestBody> {
 
     /**
      * Try to emit a buffered tool call when a valid name and JSON arguments are available.
-     * @param index The tool call index from the stream.
+     * @param key The tool call buffer key (id / index / auto).
      * @param progress Progress reporter for parts.
      */
     protected async tryEmitBufferedToolCall(
-        index: number,
+        key: string,
         progress: Progress<LanguageModelResponsePart>
     ): Promise<void> {
-        const buf = this._toolCallBuffers.get(index);
+        const buf = this._toolCallBuffers.get(key);
         if (!buf) {
             return;
         }
@@ -207,16 +211,16 @@ export abstract class CommonApi<TMessage, TRequestBody> {
         if (buf.name === ASK_IMAGE_TOOL_NAME || buf.name === ASK_WITH_MULTI_IMAGE_TOOL_NAME) {
             return;
         }
-        const canParse = tryParseJSONObject(buf.args);
-        if (!canParse.ok) {
+        const parsed = parseToolCallArguments(buf.args);
+        if (!parsed) {
             return;
         }
         const id = buf.id ?? `call_${Math.random().toString(36).slice(2, 10)}`;
-        let parameters = canParse.value;
+        let parameters = parsed;
         parameters = this.adjustReadFileParameters(buf.name, parameters);
         progress.report(new LanguageModelToolCallPart(id, buf.name, parameters));
-        this._toolCallBuffers.delete(index);
-        this._completedToolCallIndices.add(index);
+        this._toolCallBuffers.delete(key);
+        this._completedToolCallIndices.add(key);
     }
 
     /**
@@ -234,13 +238,12 @@ export abstract class CommonApi<TMessage, TRequestBody> {
         for (const [idx, buf] of Array.from(this._toolCallBuffers.entries())) {
             // Intercept ask_image / ask_with_multi_image — store on instance for provider to handle
             if (buf.name === ASK_IMAGE_TOOL_NAME || buf.name === ASK_WITH_MULTI_IMAGE_TOOL_NAME) {
-                const argsText = buf.args.trim() || "{}";
-                const parsed = tryParseJSONObject(argsText);
-                if (parsed.ok) {
+                const parsed = parseToolCallArguments(buf.args);
+                if (parsed) {
                     this.interceptedToolCall = {
                         id: buf.id ?? `call_${Math.random().toString(36).slice(2, 10)}`,
                         name: buf.name,
-                        args: parsed.value as { imageIndex?: number; imageIndices?: number[]; query: string },
+                        args: parsed as { imageIndex?: number; imageIndices?: number[]; query: string },
                     };
                 }
                 this._toolCallBuffers.delete(idx);
@@ -248,9 +251,30 @@ export abstract class CommonApi<TMessage, TRequestBody> {
                 continue;
             }
 
-            const argsText = buf.args.trim() || "{}";
-            const parsed = tryParseJSONObject(argsText);
-            if (!parsed.ok) {
+            const parsed = parseToolCallArguments(buf.args);
+            if (!parsed) {
+                // Fallback: the buffer may hold fragments of several parallel tool
+                // calls merged together (collision guard failed to separate them).
+                // Split into individual JSON objects and emit each one separately
+                // instead of throwing away the whole request.
+                const split = splitToolCallArguments(buf.args);
+                if (split.length > 1) {
+                    const baseName = buf.name ?? "unknown_tool";
+                    for (let i = 0; i < split.length; i++) {
+                        let p = split[i];
+                        p = this.adjustReadFileParameters(baseName, p);
+                        progress.report(
+                            new LanguageModelToolCallPart(
+                                `call_${Math.random().toString(36).slice(2, 10)}`,
+                                baseName,
+                                p
+                            )
+                        );
+                    }
+                    this._toolCallBuffers.delete(idx);
+                    this._completedToolCallIndices.add(idx);
+                    continue;
+                }
                 if (throwOnInvalid) {
                     console.error("[Copilot Provider] Invalid JSON for tool call", {
                         idx,
@@ -262,7 +286,7 @@ export abstract class CommonApi<TMessage, TRequestBody> {
             }
             const id = buf.id ?? `call_${Math.random().toString(36).slice(2, 10)}`;
             const name = buf.name ?? "unknown_tool";
-            let parameters = parsed.value;
+            let parameters = parsed;
             parameters = this.adjustReadFileParameters(name, parameters);
             progress.report(new LanguageModelToolCallPart(id, name, parameters));
             this._toolCallBuffers.delete(idx);
@@ -304,13 +328,12 @@ export abstract class CommonApi<TMessage, TRequestBody> {
     protected _resetStreamState(): void {
         this._toolCallBuffers.clear();
         this._completedToolCallIndices.clear();
+        this._indexToId.clear();
+        this._lastToolCallKey = undefined;
         this._hasEmittedAssistantText = false;
-        this._hasEmittedText = false;
-        this._hasEmittedThinking = false;
         this._lastFinishReason = undefined;
         this._emittedBeginToolCallsHint = false;
         this._xmlThinkActive = false;
-        this._xmlThinkDetectionAttempted = false;
         this._currentThinkingId = null;
         this._thinkingBuffer = "";
         if (this._thinkingFlushTimer) {
@@ -355,7 +378,6 @@ export abstract class CommonApi<TMessage, TRequestBody> {
      * @param progress Progress reporter for parts
      */
     protected bufferThinkingContent(text: string, progress: Progress<LanguageModelResponsePart>): void {
-        this._hasEmittedThinking = true;
         if (!this._currentThinkingId) {
             this._currentThinkingId = this.generateThinkingId();
         }
@@ -403,10 +425,8 @@ export abstract class CommonApi<TMessage, TRequestBody> {
             return { emittedAny: false };
         }
 
-        this._xmlThinkDetectionAttempted = true;
         let remaining = content;
         let emittedAny = false;
-
         while (remaining.length > 0) {
             if (this._xmlThinkActive) {
                 const endIdx = remaining.indexOf("</think>");

@@ -30,50 +30,72 @@ export function getSingleKeyFallback(): SingleKeyFallback {
     return fallback === "error" ? "error" : "switch";
 }
 
-/** 读取触发轮换的状态码列表（默认 [401, 402, 429, 503]） */
-export function getRotationStatusCodes(): number[] {
-    return getConfig().get<number[]>("apiKeyRotationStatusCodes", [401, 402, 429, 503]);
-}
+/** 错误处置动作（与 key 状态一一对应） */
+export type ErrorAction = "retrySameKey" | "rotateCooldown" | "rotatePersist";
 
-/** 读取触发轮换的错误文本 patterns */
-export function getRotationErrorPatterns(): string[] {
-    return getConfig().get<string[]>("apiKeyRotationErrorPatterns", [
-        "余额不足",
-        "insufficient balance",
-        "INSUFFICIENT_BALANCE",
-        "balance",
-        "RATE_LIMITED",
-        "UPSTREAM_RATE_LIMITED",
-    ]);
+/**
+ * 单条错误分类规则（四元组：code + message + statusCode + action）。
+ *
+ * - `code`：错误响应体的 `error.code` 字段（精确匹配，**主要匹配字段**）
+ * - `message`：错误消息说明（**仅提升可读性，不参与匹配**）
+ * - `statusCode`：HTTP 状态码兜底（匹配 `[code]` / `status code` 形式）
+ * - `action`：处置动作，与 key 状态一一对应：
+ *   - `retrySameKey` → 状态不变（不换 key，退避后重试同一个 key）
+ *   - `rotateCooldown` → 冷却中（换 key，仅内存冷却，到期自动恢复）
+ *   - `rotatePersist` → 不可用（换 key，持久化 available=false）
+ *
+ * 规则按数组顺序匹配，首个命中即生效。
+ */
+export interface ErrorRule {
+    code?: string;
+    message?: string;
+    statusCode?: number;
+    action: ErrorAction;
 }
 
 /**
- * 读取"封号"错误文本 patterns（默认见下）。
+ * 默认错误分类规则。
  *
- * 命中这些 patterns 的错误被归类为 `banned`（确定性失败，持久化 `available=false`），
- * 与 `api_error` 区分开，便于报错时给出更明确的提示。
- *
- * ⚠️ **移植对接点**：默认值是示例（某平台的"计费账户被冻结"响应），
- * 移植时按你平台的封号/冻结错误文案调整。
+ * ⚠️ **移植对接点**：`code` 默认值（`billing` / `upstream_stream_error` /
+ * `INSUFFICIENT_BALANCE`）是示例（某平台的实测错误码），移植时按你平台的
+ * 错误响应体 `error.code` 调整。`statusCode` 兜底规则（401/402/429/503/400/500）
+ * 是通用 HTTP 语义，通常无需改动。
  */
-export function getBannedErrorPatterns(): string[] {
-    return getConfig().get<string[]>("apiKeyBannedErrorPatterns", [
-        "计费账户已被冻结",
-        "\"code\":\"billing\"",
-        "ref_code:400901",
-    ]);
-}
+const DEFAULT_ERROR_RULES: ErrorRule[] = [
+    // 错误体 code 精确匹配（主要匹配字段）
+    { code: "billing", message: "计费账户已被冻结（封号）", action: "rotatePersist" },
+    { code: "upstream_stream_error", message: "上游模型流意外中断", action: "retrySameKey" },
+    { code: "INSUFFICIENT_BALANCE", message: "余额不足", action: "rotatePersist" },
+    // HTTP 状态码兜底
+    { statusCode: 401, message: "无效 key", action: "rotatePersist" },
+    { statusCode: 402, message: "余额不足", action: "rotatePersist" },
+    { statusCode: 429, message: "限流", action: "rotateCooldown" },
+    { statusCode: 503, message: "服务端繁忙", action: "rotateCooldown" },
+    { statusCode: 400, message: "上游中断复用 400", action: "retrySameKey" },
+    { statusCode: 500, message: "内部错误", action: "retrySameKey" },
+];
 
 /**
- * 读取触发"瞬态整轮自动重试"的状态码列表（默认 [429, 500, 503]）。
+ * 读取错误分类规则（四元组：code + message + statusCode + action）。
  *
- * 这些状态码代表**平台侧**问题（限流 / 服务端繁忙 / 内部错误），与 key 无关：
- * - 若**同时**命中 `apiKeyRotationStatusCodes`（如 429/503）→ 标记 key 冷却并换 key
- * - 若**未**命中（如 500）→ 不标记 key、不换 key，仅退避后重试整轮
- *   （500 是平台内部错误，换 key 无意义）
+ * **只配置这一处**即可覆盖所有错误分类：`code`（错误体 error.code 精确匹配，
+ * **主要匹配字段**）优先于 `statusCode`（HTTP 状态码兜底）；`message` 仅作
+ * 可读性说明不参与匹配；处置由 `action` 决定，与 key 状态一一对应
+ * （`retrySameKey` 状态不变 / `rotateCooldown` 冷却中 / `rotatePersist` 不可用）。
+ * 规则按数组顺序匹配，首个命中即生效。
  */
-export function getTransientRetryStatusCodes(): number[] {
-    return getConfig().get<number[]>("transientRetryStatusCodes", [429, 500, 503]);
+export function getErrorRules(): ErrorRule[] {
+    const raw = getConfig().get<ErrorRule[]>("errorRules", DEFAULT_ERROR_RULES);
+    if (!Array.isArray(raw) || raw.length === 0) {
+        return DEFAULT_ERROR_RULES;
+    }
+    return raw.filter(
+        (r): r is ErrorRule =>
+            r &&
+            typeof r === "object" &&
+            typeof r.action === "string" &&
+            (typeof r.code === "string" || typeof r.statusCode === "number")
+    );
 }
 
 /** 读取 429 瞬态冷却时长（分钟，默认 10） */

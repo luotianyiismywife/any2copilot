@@ -20,6 +20,8 @@ import {
 } from "../vision/types";
 import { createVisionToolHistoryPart } from "../vision/historyPart";
 import type { VisionToolHistoryEntry } from "../vision/historyCodec";
+import { isVisionCapableModelId } from "../models/provideModel";
+import { VisionRoundError } from "./errors";
 
 /**
  * 图片代理（ask_image）多轮处理。
@@ -69,7 +71,37 @@ export async function handleInterceptedToolCall(params: VisionRoundParams): Prom
 
     const config = vscode.workspace.getConfiguration();
     const visionModelId = config.get<string>("any2copilot.visionProxyModel", "example-model");
-    const maxRounds = config.get<number>("any2copilot.visionMaxRounds", 5);
+    // Clamp to [1, 20]: VS Code's schema minimum/maximum only warn in the UI —
+    // a value set directly in settings.json (e.g. 0 or negative) would otherwise
+    // silently drop every vision call (loop never runs).
+    const rawMaxRounds = config.get<number>("any2copilot.visionMaxRounds", 5);
+    const maxRounds = Number.isFinite(rawMaxRounds) ? Math.min(20, Math.max(1, Math.floor(rawMaxRounds))) : 5;
+
+    // Guard against a misconfigured visionProxyModel. The main model is ALWAYS
+    // non-vision here (otherwise the image would have been sent directly), so
+    // pointing the proxy at the same model — or at any known non-vision model —
+    // would make the vision request trigger the ask_image proxy again → recursion.
+    const bareVisionId = visionModelId.includes("/")
+        ? visionModelId.substring(visionModelId.lastIndexOf("/") + 1)
+        : visionModelId;
+    const bareMainId = params.model.id.includes("/")
+        ? params.model.id.substring(params.model.id.lastIndexOf("/") + 1)
+        : params.model.id;
+    if (bareVisionId === bareMainId || isVisionCapableModelId(visionModelId) === false) {
+        logger.warn("vision.proxyModelNotVisionCapable", {
+            visionModelId,
+            mainModelId: params.model.id,
+        });
+        params.trackingProgress.report(
+            new vscode.LanguageModelThinkingPart(
+                l10nFormat(
+                    "The configured vision model ({0}) does not support image input. Set any2copilot.visionProxyModel to a vision-capable model.",
+                    visionModelId
+                )
+            ) as unknown as LanguageModelResponsePart
+        );
+        return;
+    }
 
     // Accumulate messages across rounds
     let currentMessages: Record<string, unknown>[] = [...(storedMessages as Record<string, unknown>[])];
@@ -220,6 +252,12 @@ export async function handleInterceptedToolCall(params: VisionRoundParams): Prom
             } else {
                 await runOpenAIRound(params, api, currentMessages, intercepted, description, hasLocalImages, roundAbortController);
             }
+        } catch (err) {
+            // 视觉代理轮内失败：主请求已成功、tool 上下文已建立，换 key 重跑整个
+            // 请求会导致主回答重复输出。用 VisionRoundError 标记，让轮换循环直接
+            // 抛出、不轮换 key（由用户重试整个请求）。
+            const msg = err instanceof Error ? err.message : String(err);
+            throw new VisionRoundError(msg, { cause: err });
         } finally {
             clearTimeout(roundTimeoutId);
             cancelDisposable?.dispose();

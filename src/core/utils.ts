@@ -296,3 +296,177 @@ export function tryParseJSONObject(
         return { ok: false };
     }
 }
+
+/**
+ * Tolerant parse of a streamed tool-call arguments string (some OpenAI-compatible
+ * endpoints occasionally emit unclean arguments).
+ *
+ * Processing order:
+ *  1. trim;
+ *  2. strip markdown code fences (```json ... ```);
+ *  3. strip leading/trailing non-JSON junk (text before the first `{` / after
+ *     the last `}`);
+ *  4. empty/undefined → `{}`;
+ *  5. strict parse; on failure fall back to `repairJsonText` (smart quotes →
+ *     straight quotes, trailing commas, single-quoted strings, unclosed
+ *     brackets/quotes completion — stream truncation) and retry.
+ *
+ * Returns `undefined` when everything fails (caller decides whether to throw or
+ * skip). Shared by all three protocol adapters.
+ */
+export function parseToolCallArguments(raw: string | undefined): Record<string, unknown> | undefined {
+    if (raw === undefined) {
+        return {};
+    }
+    let text = raw.trim();
+    if (!text) {
+        return {};
+    }
+    // Strip markdown code fences.
+    const fence = text.match(/^```[a-zA-Z]*\s*([\s\S]*?)\s*```$/);
+    if (fence) {
+        text = fence[1].trim();
+    }
+    // Strip leading/trailing non-JSON junk.
+    const firstBrace = text.indexOf("{");
+    const lastBrace = text.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        text = text.slice(firstBrace, lastBrace + 1);
+    }
+    if (!text) {
+        return {};
+    }
+    const strict = tryParseJSONObject(text);
+    if (strict.ok) {
+        return strict.value;
+    }
+    const repaired = tryParseJSONObject(repairJsonText(text));
+    if (repaired.ok) {
+        return repaired.value;
+    }
+    return undefined;
+}
+
+/**
+ * Best-effort repair of common JSON defects in streamed tool-call arguments.
+ * Only used as a fallback when strict parsing fails.
+ */
+export function repairJsonText(text: string): string {
+    let out = text;
+    // Smart quotes → straight quotes.
+    out = out.replace(/[\u201c\u201d]/g, '"').replace(/[\u2018\u2019]/g, "'");
+    // Trailing commas before } or ].
+    out = out.replace(/,\s*([}\]])/g, "$1");
+    // Single-quoted strings → double-quoted (naive: only when no double quotes present).
+    if (!out.includes('"') && out.includes("'")) {
+        out = out.replace(/'/g, '"');
+    }
+    // Complete unclosed brackets/quotes (stream truncation).
+    let depthBrace = 0;
+    let depthBracket = 0;
+    let inString = false;
+    let escaped = false;
+    for (let i = 0; i < out.length; i++) {
+        const ch = out[i];
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+        if (ch === "\\") {
+            escaped = true;
+            continue;
+        }
+        if (ch === '"') {
+            inString = !inString;
+            continue;
+        }
+        if (inString) {
+            continue;
+        }
+        if (ch === "{") {
+            depthBrace++;
+        } else if (ch === "}") {
+            depthBrace--;
+        } else if (ch === "[") {
+            depthBracket++;
+        } else if (ch === "]") {
+            depthBracket--;
+        }
+    }
+    if (inString) {
+        out += '"';
+    }
+    while (depthBracket > 0) {
+        out += "]";
+        depthBracket--;
+    }
+    while (depthBrace > 0) {
+        out += "}";
+        depthBrace--;
+    }
+    return out;
+}
+
+/**
+ * Split a concatenated sequence of top-level JSON objects, e.g.
+ * `{"tool":"a"}{"tool":"b"}` → [`{"tool":"a"}`, `{"tool":"b"}`].
+ *
+ * Used as a fallback when parallel tool calls share the same stream `index`
+ * and their argument fragments got merged into a single buffer (the collision
+ * guard in `processDelta` tries to prevent). Keeps only fragments that parse
+ * as complete JSON objects; drops the rest.
+ *
+ * Returns an empty array when nothing splits off cleanly.
+ */
+export function splitToolCallArguments(raw: string): Record<string, unknown>[] {
+    let text = raw.trim();
+    if (!text) {
+        return [];
+    }
+    // Strip markdown code fences first.
+    const fence = text.match(/^```[a-zA-Z]*\s*([\s\S]*?)\s*```$/);
+    if (fence) {
+        text = fence[1].trim();
+    }
+
+    const results: Record<string, unknown>[] = [];
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    let start = -1;
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+        if (ch === "\\") {
+            escaped = true;
+            continue;
+        }
+        if (ch === '"') {
+            inString = !inString;
+            continue;
+        }
+        if (inString) {
+            continue;
+        }
+        if (ch === "{") {
+            if (depth === 0) {
+                start = i;
+            }
+            depth++;
+        } else if (ch === "}") {
+            depth--;
+            if (depth === 0 && start !== -1) {
+                const frag = text.slice(start, i + 1).trim();
+                const parsed = parseToolCallArguments(frag);
+                if (parsed) {
+                    results.push(parsed);
+                }
+                start = -1;
+            }
+        }
+    }
+    return results;
+}

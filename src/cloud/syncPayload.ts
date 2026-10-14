@@ -6,11 +6,18 @@
  * 同时被 `cloudSync.ts` 的自动推送去重逻辑复用。
  */
 
-/** Gist 中存储的单个 key 条目（仅同步 value/cookie/label，可用性状态为本地数据不同步）。 */
+/** Gist 中存储的单个 key 条目（仅同步 value/credential/label，可用性状态为本地数据不同步）。 */
 export interface SyncedKeyEntry {
     value: string;
-    cookie?: string;
+    credential?: string;
     label?: string;
+}
+
+/**
+ * 读取条目的平台登录凭据，兼容旧字段名 `cookie`（向后兼容）。
+ */
+export function readEntryCredential(entry: SyncedKeyEntry): string | undefined {
+    return entry.credential ?? (entry as { cookie?: string }).cookie;
 }
 
 /** Gist 文件负载结构。 */
@@ -23,7 +30,7 @@ export interface SyncPayload {
 /**
  * 比较本地与云端 Gist 负载是否不同（决定是否需要推送）。
  *
- * 比较 `version`、条目数量以及每个条目的 `value` / `cookie` / `label`；
+ * 比较 `version`、条目数量以及每个条目的 `value` / `credential` / `label`；
  * `updatedAt` 不参与比较（时间戳变化不代表内容变化）。`undefined` 与 `""`
  * 视为等价（与 `normalizeEntries` 的口径一致）。
  *
@@ -47,7 +54,7 @@ export function syncPayloadHasChanged(local: SyncPayload | undefined, remote: Sy
         return (
             !other ||
             entry.value !== other.value ||
-            (entry.cookie ?? "") !== (other.cookie ?? "") ||
+            (readEntryCredential(entry) ?? "") !== (readEntryCredential(other) ?? "") ||
             (entry.label ?? "") !== (other.label ?? "")
         );
     });

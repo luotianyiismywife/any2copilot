@@ -20,6 +20,7 @@ import {
     getRotationCursorIndex,
     getTransientExhaustedInfo,
     maskApiKey,
+    pickAccountCredential,
     type ApiKeyEntry,
     type ApiKeyStore,
 } from "../keys/keyManager";
@@ -52,18 +53,18 @@ export function formatBalanceDetailText(info: AccountInfo | undefined, minBalanc
 /**
  * 查询账号余额（TTL 缓存）。
  *
- * 数据源：登录 token 查账号信息端点（`getAccountInfoCached`）。
- * 余额按**账号**粒度，所有 key 共享同一份。
- * 无登录 token 或查询失败 → undefined（UI 显示 "余额未知"）。
+ * 数据源：key 绑定的平台登录凭据（PASETO token）查账号信息端点
+ * （`getAccountInfoCached`）。余额按**账号**粒度，所有 key 共享同一份。
+ * 无凭据或查询失败 → undefined（UI 显示 "余额未知"）。
  */
 export async function fetchAccountInfo(
-    getLoginToken: () => string | undefined,
+    store: ApiKeyStore,
 ): Promise<AccountInfo | undefined> {
-    const token = getLoginToken();
-    if (!token) {
+    const credential = pickAccountCredential(store);
+    if (!credential) {
         return undefined;
     }
-    return getAccountInfoCached(token, getBalanceCheckIntervalSec());
+    return getAccountInfoCached(credential, getBalanceCheckIntervalSec());
 }
 
 /**
@@ -71,7 +72,7 @@ export async function fetchAccountInfo(
  *
  * 包含：可用性状态（可用/不可用/冷却倒计时/未检测）、账号余额、
  * 当前使用（★ Current，仅 single 模式）、固定使用（$(pinned)，仅 sticky 模式）、
- * cookie 绑定状态。删除/设为当前/编辑/绑定/清除 cookie 等 key 选择界面共用。
+ * 凭据绑定状态。删除/设为当前/编辑/绑定/清除凭据等 key 选择界面共用。
  */
 export function buildKeyDetailLine(
     entry: ApiKeyEntry,
@@ -100,7 +101,7 @@ export function buildKeyDetailLine(
         balanceText,
         options.isActive ? `$(star) ${l10n("Current")}` : "",
         options.isPinned ? `$(pinned) ${l10n("Pinned")}` : "",
-        entry.cookie ? `$(key) ${l10n("Cookie bound")}` : `$(key) ${l10n("Cookie not bound")}`,
+        entry.credential ? `$(key) ${l10n("Credential bound")}` : `$(key) ${l10n("Credential not bound")}`,
     ]
         .filter(Boolean)
         .join("  ·  ");
@@ -115,12 +116,11 @@ export function buildKeyDetailLine(
  */
 export async function buildKeyQuickPickItems(
     store: ApiKeyStore,
-    getLoginToken: () => string | undefined,
     action: string,
 ): Promise<(vscode.QuickPickItem & { action?: string; index?: number; entry?: ApiKeyEntry })[]> {
     // Balance display: account-level (all keys share one account).
-    // Source: login token → account info endpoint.
-    const accountInfo = await fetchAccountInfo(getLoginToken);
+    // Source: key-bound credential → account info endpoint.
+    const accountInfo = await fetchAccountInfo(store);
     const balanceText = accountInfo
         ? formatBalanceDetailText(accountInfo, getMinBalanceCny())
         : `$(warning) ${l10n("Balance unknown")}`;

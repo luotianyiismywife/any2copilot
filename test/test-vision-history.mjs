@@ -126,7 +126,7 @@ try {
             role: "user",
             content: [{ type: "tool_result", tool_use_id: entry.id, content: entry.result }],
         },
-        { role: "assistant", content: [{ type: "text", text: "The previous answer." }, { type: "thinking", thinking: "Next step." }] },
+        { role: "assistant", content: [{ type: "text", text: "The previous answer." }] },
     ]);
 
     // A tool-call assistant message WITHOUT any reasoning parts must still carry

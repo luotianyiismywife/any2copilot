@@ -35,8 +35,8 @@ let statusBarHideTimer: NodeJS.Timeout | null = null;
 let lastTokenText = "$(pulse) --";
 
 // ── Plan usage polling state ──
-/** Login-token provider, injected by `initStatusBar` (token lives in globalState). */
-let usageTokenProvider: (() => string | undefined) | undefined;
+/** Credential provider, injected by `initStatusBar` (sourced from key-bound credentials). */
+let usageTokenProvider: (() => Promise<string | undefined>) | undefined;
 /** Status bar item reference for background re-renders. */
 let usageStatusBarItem: vscode.StatusBarItem | undefined;
 /** Background refresh timer. */
@@ -77,9 +77,9 @@ async function refreshPlanUsage(): Promise<void> {
     if (usageRefreshInFlight || !usageTokenProvider) {
         return;
     }
-    const token = usageTokenProvider();
+    const token = await usageTokenProvider();
     if (!token) {
-        logger.debug("planUsage.poll.skip", { reason: "no-token" });
+        logger.debug("planUsage.poll.skip", { reason: "no-credential" });
         return;
     }
     usageRefreshInFlight = true;
@@ -124,7 +124,7 @@ function startUsagePolling(): void {
  * by clicking the status bar item) and re-render once fresh data arrives.
  */
 export async function refreshPlanUsageNow(): Promise<PlanUsageSnapshot | null> {
-    const token = usageTokenProvider?.();
+    const token = await usageTokenProvider?.();
     if (!token) {
         return null;
     }
@@ -217,7 +217,7 @@ function appendPlanUsageTooltipLines(lines: string[]): void {
 
 export function initStatusBar(
     context: vscode.ExtensionContext,
-    getLoginToken?: () => string | undefined,
+    getCredential?: () => Promise<string | undefined>,
 ): vscode.StatusBarItem {
     // Reset cumulative counters on VS Code startup
     resetCumulativeCounters();
@@ -231,9 +231,9 @@ export function initStatusBar(
     context.subscriptions.push(tokenCountStatusBarItem);
 
     // Plan usage polling for the status bar text and tooltip section
-    usageTokenProvider = getLoginToken;
+    usageTokenProvider = getCredential;
     usageStatusBarItem = tokenCountStatusBarItem;
-    if (getLoginToken) {
+    if (getCredential) {
         startUsagePolling();
     }
     context.subscriptions.push({ dispose: stopUsagePolling });
