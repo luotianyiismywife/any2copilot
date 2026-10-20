@@ -37,7 +37,7 @@
 | 能力 | 说明 |
 |------|------|
 | **Chat 模型提供商** | 实现 `LanguageModelChatProvider` 接口，向 VS Code 注册为厂商（vendor 由 `package.json` 声明，见移植指南 §1.2） |
-| **多 API Key 轮询** | 支持多个 API Key（SecretStorage 加密存储 `<prefix>.apiKeys`），三种模式：`sticky`（默认，固定使用一个 key，仅失效时切下一个并钉住——前缀缓存命中率最高，切换后不自动切回）/ `rotation`（轮询使用、跳过不可用 key）/ `single`（仅用当前 key；`<prefix>.singleKeyFallback`（默认 `switch`）下**仅在当前 key 命中 `rotatePersist`（确定性失败：余额不足/无效 key/封号）时**自动切换到下一个可用 key 并经 `setActiveKeyByValue` 设为当前使用 + 右下角弹窗提示——`rotateCooldown`（429/503 瞬态）不切换、走 single 专属报错文案；`error` 下任何错误都直接报错不切换）。**被动检测**：**只配置 `<prefix>.errorRules` 一处**（四元组：code + message + statusCode + action，`src/keys/config.ts` 的 `getErrorRules`）。按数组顺序匹配，首个命中即生效：`code`（错误体 error.code 精确匹配，**主要匹配字段**）优先于 `statusCode`（HTTP 状态码兜底）；`message` 仅作可读性说明**不参与匹配**。`action` 与 key 状态一一对应：`retrySameKey` → 状态不变（不换 key，退避后重试同一个 key）、`rotateCooldown` → 冷却中（换 key，仅内存冷却，到期自动恢复）、`rotatePersist` → 不可用（换 key，持久化 available=false）。默认规则基于实测：封号（`code=billing`，400）→ 不可用；上游流中断（`code=upstream_stream_error`，400）→ 不换重试；余额不足（`code=INSUFFICIENT_BALANCE`，402）→ 不可用；限流（429/503）→ 冷却。**手动检测**：`<prefix>.manageApiKeys` 命令 QuickPick 管理（增删/设为当前/绑定平台登录凭据/重置失效/检测可用性——最小真实聊天请求 `say ok`，实测余额不足时 402 拦截不耗 token）。**UI 增强**：表单式批量导入（三元组 key/凭据/备注）、检测二级界面、编辑 API Key（三字段 value/凭据/label，冲突校验）、**轮询模式下隐藏"设为当前使用"**、批量导入时已存在 key 自动更新凭据不重复添加、**所有 key 管理界面均显示账号余额**（key 绑定的平台登录凭据经 `getAccountInfoCached` TTL 缓存查询账号信息端点，余额按**账号**粒度、所有 key 共享）。**全部 key 用尽时**：轮换循环跟踪每个 key 命中的 `ErrorRule`，报错列出脱敏 key + 原因（如 `sk_****abcd: 服务端繁忙`），并区分"瞬态失败请稍后重试"（`rotateCooldown`）与"确定性失败请检测"（`rotatePersist`）。**瞬态自动重试**：全部 key 均因 `rotateCooldown` 规则失败时，按 `<prefix>.transientRetryTimes`（默认 3）自动重试整轮——指数退避等待（2s/4s/8s，上限 8s）且**重试前清空瞬态冷却**，重试次数用尽后才报错。**平台侧错误不换 key**：`retrySameKey` 规则（如 500 Internal Server Error、`upstream_stream_error`）是平台/客户端侧问题而非 key 问题——**不标记 key、不换 key**，仅退避后重试同一个 key。旧版单 key `<prefix>.apiKey` 自动迁移。实现见 `src/keys/` |
+| **多 API Key 轮询** | 支持多个 API Key（SecretStorage 加密存储 `<prefix>.apiKeys`），三种模式：`sticky`（默认，固定使用一个 key（持久化 `activeIndex`），仅失效时切下一个并钉住——前缀缓存命中率最高，切换后不自动切回；可在「管理 API Keys」手动「设为当前使用」指定钉住的 key）/ `rotation`（轮询使用、跳过不可用 key）/ `single`（仅用当前 key；`<prefix>.singleKeyFallback`（默认 `switch`）下**仅在当前 key 命中 `rotatePersist`（确定性失败：余额不足/无效 key/封号）时**自动切换到下一个可用 key 并经 `setActiveKeyByValue` 设为当前使用 + 右下角弹窗提示——`rotateCooldown`（429/503 瞬态）不切换、走 single 专属报错文案；`error` 下任何错误都直接报错不切换）。**被动检测**：**只配置 `<prefix>.errorRules` 一处**（四元组：code + message + statusCode + action，`src/keys/config.ts` 的 `getErrorRules`）。按数组顺序匹配，首个命中即生效：`code`（错误体 error.code 精确匹配，**主要匹配字段**）优先于 `statusCode`（HTTP 状态码兜底）；`message` 仅作可读性说明**不参与匹配**。`action` 与 key 状态一一对应：`retrySameKey` → 状态不变（不换 key，退避后重试同一个 key）、`rotateCooldown` → 冷却中（换 key，仅内存冷却，到期自动恢复）、`rotatePersist` → 不可用（换 key，持久化 available=false）。默认规则基于实测：封号（`code=billing`，400）→ 不可用；上游流中断（`code=upstream_stream_error`，400）→ 不换重试；余额不足（`code=INSUFFICIENT_BALANCE`，402）→ 不可用；限流（429/503）→ 冷却。**手动检测**：`<prefix>.manageApiKeys` 命令 QuickPick 管理（增删/设为当前/绑定平台登录凭据/重置失效/检测可用性——最小真实聊天请求 `say ok`，实测余额不足时 402 拦截不耗 token）。**UI 增强**：表单式批量导入（三元组 key/凭据/备注）、检测二级界面、编辑 API Key（三字段 value/凭据/label，冲突校验）、**rotation 模式下隐藏"设为当前使用"（single/sticky 显示）**、批量导入时已存在 key 自动更新凭据不重复添加、**所有 key 管理界面均显示账号余额**（key 绑定的平台登录凭据经 `getAccountInfoCached` TTL 缓存查询账号信息端点，余额按**账号**粒度、所有 key 共享）。**全部 key 用尽时**：轮换循环跟踪每个 key 命中的 `ErrorRule`，报错列出脱敏 key + 原因（如 `sk_****abcd: 服务端繁忙`），并区分"瞬态失败请稍后重试"（`rotateCooldown`）与"确定性失败请检测"（`rotatePersist`）。**瞬态自动重试**：全部 key 均因 `rotateCooldown` 规则失败时，按 `<prefix>.transientRetryTimes`（默认 3）自动重试整轮——指数退避等待（2s/4s/8s，上限 8s）且**重试前清空瞬态冷却**，重试次数用尽后才报错。**平台侧错误不换 key**：`retrySameKey` 规则（如 500 Internal Server Error、`upstream_stream_error`）是平台/客户端侧问题而非 key 问题——**不标记 key、不换 key**，仅退避后重试同一个 key；重试次数用尽时抛出 `TransientRetryExhaustedError`（友好文案 + 原始错误后缀）。旧版单 key `<prefix>.apiKey` 自动迁移。实现见 `src/keys/` |
 | **云同步（GitHub Gist）** | key/凭据/备注 三元组跨机器云同步：使用 VS Code 内置的 GitHub 登录（`vscode.authentication.getSession("github", ["gist"])`，无需 PAT）获取 token，将三元组存储到一个**私密 Gist**（`public: false`）。**手动推送**（`<prefix>.syncPush`）/ **手动拉取**（`<prefix>.syncPull`）/ **启动自动拉取**（`<prefix>.cloudSyncAutoPull`，默认开启，未登录时静默跳过）/ **自动推送**（`<prefix>.cloudSyncAutoPush`，默认关闭，key 管理操作后去抖 2.5s 静默推送，本地与云端一致时短路不写 Gist）。**合并策略（拉取）**：云端为源——按 key 值对齐，云端条目覆盖本地凭据/label；**可用性状态为本地数据不同步**。**时间戳口径统一**：push 记录服务端 `updated_at`（与 pull 侧一致），消除客户端时钟偏差导致的 push 后必然多拉一次。**跨窗口锁**：`globalState` 的 `<prefix>.cloudSyncLockUntil` 防止两窗口同时写 Gist。**向后兼容**：旧字段名 `cookie` 与 `credential` 等价（`readEntryCredential`）。实现集中在 `src/cloud/cloudSync.ts` + `src/cloud/syncPayload.ts` |
 | **多模型支持** | 内置模型定义（`src/models/models.ts` 的 `BUILT_IN_MODELS`，**移植时替换为你平台的模型**），统一通过推理强度选择器切换思考模式。支持自动模型发现：开启后从 API 获取模型列表，自动过滤不可用模型并发现新增模型 |
 | **自动模型发现** | 通过 `<prefix>.enableAutoModelDiscovery` 配置（默认开启）。启动时从 `/v1/models` 获取当前可用模型 ID 列表及能力标记，过滤内置模型列表（不可用模型自动隐藏）。新增模型元数据以 **`/v1/models` 完整元数据为主源**，models.dev 仅提供友好名称与回退规格；两源均未知输出上限时不发送 `max_completion_tokens`（交由服务端默认值）。`thinkingMode` 从 `supports_reasoning` 推断。API 不可用时静默回退到全量内置列表。内存缓存（5 分钟 TTL）。**按 API 模式过滤**：`anthropic` 仅显示 `supports_anthropic=true` 的模型，`responses` 仅显示 `supports_responses=true` 的模型。**动态刷新**：通过 `onDidChangeLanguageModelChatInformation` 事件（VS Code 1.125+），切换 `apiMode` / `enableAutoModelDiscovery` 设置时自动刷新选择器，**无需 reload 窗口** |
@@ -50,8 +50,7 @@
 | **上下文窗口声明** | `maxInputTokens` 按真实上下文窗口的**可配置比例**声明（默认 `1.0`，可通过 `<prefix>.maxInputTokensRatio` 调整，范围 0.1–1.0，**建议 0.8**）。VS Code agent 模式的自动压缩在比例 0.8 时于真实上下文的约 **72%** 处触发。`context_length` / `max_completion_tokens` 保持真实值不变（用于 API 请求体） |
 | **Token 计数** | 使用 `o200k_base` tiktoken 分词器精确统计 token 用量 |
 | **原生 Token 指示器** | 始终启用，向 Copilot Chat 原生 Token 指示器报告 token 用量。通过发送 MIME 类型为 `usage` 的 `LanguageModelDataPart` 实现。依赖 VS Code/Copilot Chat 1.116+ |
-| **高级 Token 指示器** | 可通过 `<prefix>.enableThirdPartyTokenIndicator` 配置（**默认关闭**）控制 VS Code 状态栏中的高级 Token 计数器。**状态栏可见性由 `isStatusBarEnabled()` 决定 = 高级 Token 指示器 OR 套餐用量显示**。状态栏**仅在用户实际使用本插件提供的模型时显示**：启动时隐藏，发起请求时显示，停止使用（空闲 60 秒）后自动隐藏 |
-| **套餐用量与余额显示** | 状态栏主文本显示**套餐用量**：额度内显示 `$(pulse) 5H 65%`（5 小时限流窗口），额度耗尽显示 `$(pulse) 余额 ¥358.78`；悬停提示展示 5h/周/月三窗口 + 5h 重置倒计时 + 余额 + 计费模式说明。**两套计费规则严格区分**：① **周期额度**（5h/周）是**限流窗口**，耗尽后等下一周期自动恢复、**不消耗余额**；② **套餐积分**（月度）才是**订阅额度**，耗尽后走超额策略——`enableExtraUsage=true` 则按量计费，否则**降级 Free 版**。三态 `billingMode`：`plan`/`extra`/`free`。数据源为账号信息端点，TTL 缓存 + **失败保留旧快照**（静默降级）。后台轮询（`<prefix>.usageRefreshInterval` 默认 5 分钟）+ 点击状态栏（`<prefix>.checkUsage` 命令，命令面板隐藏）强制刷新。**⚠️ 单位陷阱**：代金券积分 `1 元 = 1,000,000 积分`（`POINTS_PER_CNY`），与套餐积分**不是同一单位**。实现见 `src/balance/planUsage.ts`，设计/移植指南见 `docs/plan-usage-design.md`。**同时支持「仅余额」与「余额 + 用量窗口」两种数据格式**（`usageInfos` 为空 → 只显示余额行） |
+| **套餐用量与余额显示** | 状态栏主文本显示**套餐用量**：额度内显示 `$(pulse) 5H 65%`（5 小时限流窗口），额度耗尽显示 `$(pulse) 余额 ¥358.78`；悬停提示展示 5h/周/月三窗口 + 5h 重置倒计时 + 余额 + 计费模式说明。**可见性由单一设置 `<prefix>.showUsage`（默认开启）控制**——关闭即隐藏整个状态栏（`isStatusBarEnabled()` = `showUsage`）。状态栏**仅在用户实际使用本插件提供的模型时显示**：启动时隐藏，发起请求时显示，停止使用（空闲 60 秒）后自动隐藏。**两套计费规则严格区分**：① **周期额度**（5h/周）是**限流窗口**，耗尽后等下一周期自动恢复、**不消耗余额**；② **套餐积分**（月度）才是**订阅额度**，耗尽后走超额策略——`enableExtraUsage=true` 则按量计费，否则**降级 Free 版**。三态 `billingMode`：`plan`/`extra`/`free`。数据源为账号信息端点，TTL 缓存 + **失败保留旧快照**（静默降级）。后台轮询（`<prefix>.usageRefreshInterval` 默认 5 分钟）+ 点击状态栏（`<prefix>.checkUsage` 命令，命令面板隐藏）强制刷新。**⚠️ 单位陷阱**：代金券积分 `1 元 = 1,000,000 积分`（`POINTS_PER_CNY`），与套餐积分**不是同一单位**。实现见 `src/balance/planUsage.ts`，设计/移植指南见 `docs/plan-usage-design.md`。**同时支持「仅余额」与「余额 + 用量窗口」两种数据格式**（`usageInfos` 为空 → 只显示余额行） |
 | **Git 提交消息生成** | 一键生成 Conventional Commit 格式的 Git 提交消息，支持 `auto` 语言模式自动从历史提交检测语言 |
 | **多仓库支持** | 支持多根工作区 (multi-root) 中多个 Git 仓库的提交消息生成 |
 | **模型预设** | 支持通过 `<prefix>.modelPreset` 设置切换 temperature/top_p 预设（🎯 Precise/⚖️ Balanced/🔥 Creative），也支持手动自定义输入 |
@@ -188,7 +187,7 @@ provideLanguageModelChatResponse(model, messages, options, progress, token)
   │
   ├── 9c. **多 Key 轮换循环**（runKeyRotationLoop，外层 while(true)）:
   │       ├── pickNextApiKey(secrets, apiKeyMode)
-  │       │   ├── sticky → 环形扫描第一个可用 key，游标钉住不前移
+  │       │   ├── sticky → 从 activeIndex 环形扫描第一个可用 key，命中后钉住（更新并持久化 activeIndex）
   │       │   ├── rotation → 环形扫描第一个可用 key，游标前移
   │       │   ├── single → active key；不可用且 fallback=switch 且本轮命中 rotatePersist → 降级 rotation
   │       │   └── 全部不可用 → 报错列出脱敏 key+原因
@@ -381,7 +380,7 @@ src/
 │   ├── utils.ts                          # 通用工具函数
 │   └── versionManager.ts                 # 版本信息管理
 ├── ui/
-│   └── statusBar.ts                      # 状态栏管理（套餐用量 + Token 指示器）
+│   └── statusBar.ts                      # 状态栏管理（套餐用量 + 余额）
 ├── cloud/
 │   ├── cloudSync.ts                      # 云同步（GitHub Gist）：推送/拉取/启动自动拉取/自动推送
 │   └── syncPayload.ts                    # 纯函数：Gist payload 对比（无 VS Code 运行时依赖）
@@ -469,7 +468,7 @@ test/                                     # 测试脚本（运行前需 npm run 
 | `provider/rotation.ts` | `runKeyRotationLoop()`：多 key 轮换循环 |
 | `provider/apiDispatch.ts` | `executeApiRequest()`：三协议分发、请求体构建、流式处理、零正文检测 |
 | `provider/visionRounds.ts` | `handleInterceptedToolCall()`：ask_image 图片代理多轮 |
-| `provider/errors.ts` | `VisionRoundError`（视觉代理轮内失败标记，不触发 key 轮换）/ `REASON_TEXT` / `buildAllKeysUnavailableDetail` / `tryTransientRetryRound` / `checkZeroAnswerBudgetExhausted` / `reportNativeUsage` / `getRequestedReasoningEffort` |
+| `provider/errors.ts` | `VisionRoundError`（视觉代理轮内失败标记，不触发 key 轮换）/ `TransientRetryExhaustedError`（`retrySameKey` 重试耗尽后的友好错误）/ `REASON_TEXT` / `buildAllKeysUnavailableDetail` / `tryTransientRetryRound` / `checkZeroAnswerBudgetExhausted` / `reportNativeUsage` / `getRequestedReasoningEffort` |
 | `keys/keyManager.ts` | barrel：统一导出 `keys/` 下全部 API |
 | `keys/store.ts` | SecretStorage 读写与旧版单 key 迁移、增删改（含缓存语义比较） |
 | `keys/selection.ts` | `getPrimaryApiKey` / `pickNextApiKey` / `shouldSingleKeyFallbackSwitch` / `setActiveKeyByValue` / `pickAccountCredential` / `getAccountCredential` |
@@ -627,7 +626,7 @@ test/                                     # 测试脚本（运行前需 npm run 
 
 > `keys/keyManager.ts` 为 barrel，统一导出以下模块的全部 API。
 
-- `keys/config.ts`：`getApiKeyMode` / `getRotationCursorIndex` / `getSingleKeyFallback` / `getErrorRules`（errorRules 四元组）/ `getExhaustedCooldownMin` / `getTransientRetryTimes`；类型 `ErrorAction` / `ErrorRule`
+- `keys/config.ts`：`getApiKeyMode` / `getSingleKeyFallback` / `getErrorRules`（errorRules 四元组）/ `getExhaustedCooldownMin` / `getTransientRetryTimes`；类型 `ErrorAction` / `ErrorRule`
 - `keys/store.ts`：`getApiKeyStore` / `saveApiKeyStore` / `invalidateApiKeyStoreCache` / `addApiKey` / `addApiKeys` / `removeApiKey` / `setActiveKey` / `setKeyCredential` / `updateApiKey`
 - `keys/state.ts`：`getStoreCache` / `setStoreCache` / `getRotationIndex` / `setRotationIndex` / `getTransientExhaustedMap` / `onApiKeyStoreChanged` / `notifyApiKeyStoreChanged`
 - `keys/selection.ts`：`getPrimaryApiKey` / `pickNextApiKey` / `shouldSingleKeyFallbackSwitch` / `setActiveKeyByValue` / `pickAccountCredential` / `getAccountCredential`
@@ -642,7 +641,7 @@ test/                                     # 测试脚本（运行前需 npm run 
 - `rotation.ts`：`runKeyRotationLoop(params)`
 - `apiDispatch.ts`：`executeApiRequest(params)`
 - `visionRounds.ts`：`handleInterceptedToolCall(params)`
-- `errors.ts`：`VisionRoundError`（视觉代理轮内失败标记，不触发 key 轮换）/ `REASON_TEXT` / `checkZeroAnswerBudgetExhausted` / `buildAllKeysUnavailableDetail` / `tryTransientRetryRound` / `reportNativeUsage` / `getRequestedReasoningEffort`
+- `errors.ts`：`VisionRoundError`（视觉代理轮内失败标记，不触发 key 轮换）/ `TransientRetryExhaustedError`（`retrySameKey` 重试耗尽后的友好错误）/ `REASON_TEXT` / `checkZeroAnswerBudgetExhausted` / `buildAllKeysUnavailableDetail` / `tryTransientRetryRound` / `reportNativeUsage` / `getRequestedReasoningEffort`
 
 ### 5.6 `src/api/` 模块
 
@@ -681,8 +680,8 @@ test/                                     # 测试脚本（运行前需 npm run 
 ### 5.10 `src/ui/statusBar.ts`
 
 - `initStatusBar(context, getCredential?)` / `showTokenStatusBar` / `scheduleStatusBarHide` / `refreshPlanUsageNow`
-- `formatTokenCount` / `createProgressBar` / `updateContextStatusBar` / `updateStatusBarWithApiPrompt`
-- `resetCumulativeCounters` / `recordUsage` / `updateCumulativeTooltip`
+- `updateContextStatusBar(messages, tools, statusBarItem, modelConfig)`（返回估算输入 token 数）
+- 内部：`isUsageEnabled`（读 `<prefix>.showUsage`）/ `isStatusBarEnabled` / `updateStatusBarUsageText` / `updateStatusBarTooltip` / `appendPlanUsageTooltipLines`
 
 ### 5.11 `src/cloud/` 模块
 

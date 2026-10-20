@@ -142,7 +142,7 @@ initStatusBar(context, getLoginToken)
               └── getPlanUsageCached(token)  ← TTL 缓存（默认 60s）
                     └── getAccountInfoWithStatus()
                           └── queryAccountInfo()  ← ★ 平台端点
-              └── updateStatusBarUsageText() + updateCumulativeTooltip()
+              └── updateStatusBarUsageText() + updateStatusBarTooltip()
 
 点击状态栏（<prefix>.checkUsage）
   └── refreshPlanUsageNow()                  ← force=true 绕过 TTL
@@ -168,14 +168,10 @@ initStatusBar(context, getLoginToken)
 | 有数据，额度内 | `$(pulse) 5H 65%` |
 | 有数据，额度耗尽 | `$(pulse) 余额 ¥358.78` |
 | 无数据 | `$(pulse) --` |
-| `showUsageInStatusBar=false` | `$(symbol-numeric) 12.3K ▅ 45.2%`（Token 计数，旧行为） |
 
 ### 5.2 悬停提示
 
 ```
-↑ 12.3K (1.2K cached, 65%)
-↓ 4.5K
-
 5H——0% (0 / 10,000 积分)
 Week——0% (0 / 10,000 积分)
 Month——100% (10,012 / 10,000 积分)
@@ -191,23 +187,21 @@ Month——100% (10,012 / 10,000 积分)
 
 | 配置 | 默认 | 说明 |
 |------|------|------|
-| `<prefix>.showUsageInStatusBar` | `true` | 主文本显示套餐用量（关闭则显示 Token 计数） |
-| `<prefix>.showUsageInTooltip` | `true` | 悬停提示显示套餐用量区块 |
+| `<prefix>.showUsage` | `true` | 显示套餐用量（主文本 + 悬停提示）；关闭则隐藏整个状态栏 |
 | `<prefix>.usageRefreshInterval` | `5` | 后台刷新间隔（分钟，1-60） |
-| `<prefix>.enableThirdPartyTokenIndicator` | `false` | 是否显示高级 Token 计数器 |
 | `<prefix>.minBalanceCny` | `0` | 余额阈值（合计可用 ≤ 该值标记 error 图标） |
 | `<prefix>.balanceCheckIntervalSec` | `60` | 账号信息缓存 TTL（秒） |
 
-### 5.4 ⚠️ 状态栏可见性（易踩坑）
+### 5.4 状态栏可见性
 
-状态栏承载**两个独立功能**：套餐用量 + 高级 Token 计数器。可见性由
-`isStatusBarEnabled()` 决定：
+状态栏承载套餐用量显示（主文本 + 悬停提示区块），由单一设置
+`<prefix>.showUsage` 控制。可见性由 `isStatusBarEnabled()` 决定：
 
 ```ts
-isThirdPartyIndicatorEnabled() || isUsageInStatusBarEnabled() || isUsageTooltipEnabled()
+isUsageEnabled()   // 读 <prefix>.showUsage
 ```
 
-**不能只用 `enableThirdPartyTokenIndicator` 把关**（默认关闭），否则套餐用量功能将永远不可见。
+关闭 `showUsage` 即隐藏整个状态栏。
 
 ---
 

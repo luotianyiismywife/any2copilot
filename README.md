@@ -65,7 +65,7 @@ src/
 ├── models/                      ← 模型定义与自动发现
 ├── commands/                    ← 命令与 QuickPick UI
 ├── core/                        ← 日志 / l10n / 工具函数
-├── ui/statusBar.ts              ← 状态栏（套餐用量 + Token 指示器）
+├── ui/statusBar.ts              ← 状态栏（套餐用量 + 余额）
 ├── cloud/                       ← GitHub Gist 云同步（cloudSync.ts + syncPayload.ts）
 ├── gitCommit/                   ← Git 提交消息生成
 ├── tokenizer/                   ← o200k_base token 计数
@@ -112,8 +112,8 @@ AGPL-3.0 License. This scaffold builds upon the architecture of
 | **流式 + 思考** | SSE 流式、推理/思考内容、XML ` thinking` 块解析 |
 | **工具调用** | 支持 VS Code `LanguageModelToolCallPart` |
 | **视觉代理（`ask_image`）** | 纯文本模型可向视觉模型提问图片，含跨轮历史持久化 |
-| **Token 计数** | `o200k_base` tiktoken，原生 + 可选高级状态栏指示器 |
-| **套餐用量与余额** | 状态栏套餐用量显示（5h/周/月窗口 + 余额），**同时支持「仅余额」与「余额 + 用量窗口」两种数据格式** |
+| **Token 计数** | `o200k_base` tiktoken，原生 Token 指示器 |
+| **套餐用量与余额** | 状态栏套餐用量显示（5h/周/月窗口 + 余额），由单一设置 `showUsage` 控制（关闭即隐藏状态栏），**同时支持「仅余额」与「余额 + 用量窗口」两种数据格式** |
 | **Git 提交消息** | 从 SCM 面板生成 Conventional Commit |
 | **国际化** | 简体中文 + 英文 |
 
@@ -144,7 +144,7 @@ src/
 ├── models/                      ← 模型定义与自动发现
 ├── commands/                    ← 命令与 QuickPick UI
 ├── core/                        ← 日志 / l10n / 工具函数
-├── ui/statusBar.ts              ← 状态栏（套餐用量 + Token 指示器）
+├── ui/statusBar.ts              ← 状态栏（套餐用量 + 余额）
 ├── cloud/                       ← GitHub Gist 云同步（cloudSync.ts + syncPayload.ts）
 ├── gitCommit/                   ← Git 提交消息生成
 ├── tokenizer/                   ← o200k_base token 计数

@@ -13,14 +13,14 @@
 | `api-tests.mjs` | 联网 | 三协议完整测试（OpenAI / Anthropic / Responses），需真实 API Key |
 | `test-plan-usage.mjs` | 离线 | **套餐用量快照**（29 项断言）：窗口归一化、百分比、超额判定、三态计费模式、倒计时、摘要格式化、真实 API 夹具回归 |
 | `test-transient-retry.mjs` | 离线 | **瞬态错误分类**（18 项断言）：500 命中重试但不命中轮换（平台问题不换 key）、429/503 两者都命中、400/403 都不命中、401/402 仅轮换 |
-| `test-keys.mjs` | 离线 | **Key 选择与状态**（18 项断言）：rotation 游标前移 / sticky 钉住 / single active、跳过不可用与冷却 key、single fallback 判定、store 增删改（cookie 更新 / 冲突校验）、旧版单 key 迁移 |
+| `test-keys.mjs` | 离线 | **Key 选择与状态**（18 项断言）：rotation 游标前移 / sticky 钉住 / single active、跳过不可用与冷却 key、single fallback 判定、store 增删改（credential 更新 / 冲突校验）、旧版单 key 迁移 |
 | `test-rotation.mjs` | 离线 | **轮换循环**（7 项断言）：成功路径、402 换 key（持久化）、429 换 key（仅冷却）、500 不换 key（同 key 重试）、全部失败报错（脱敏）、取消立即抛出、single 余额不足降级 rotation |
 | `test-vision-history.mjs` | 离线 | 跨轮视觉历史编解码 + 双 API 转换器闭环（含空 reasoning_content 回归） |
 | `test-anthropic-tool-result-merge.mjs` | 离线 | Anthropic 连续工具结果合并（3 个并行 tool_use 结果合并为单条 user 消息） |
-| `test-batch-import.mjs` | 离线 | **批量导入解析器**（14 项断言）：`key---cookie---备注;` 格式、空字段、备注含分隔符、容错 |
-| `test-banned-rotation.mjs` | 离线 | **封号错误检测**（9 项断言）：`apiKeyBannedErrorPatterns` 命中判定、`reason="banned"`、持久化失效、key 跳过、`REASON_TEXT["banned"]`、自定义/空 patterns |
-| `test-cloud-sync-auto-push.mjs` | 离线 | **云同步 payload 去重**（16 项断言）：`syncPayloadHasChanged` 的空值/版本/长度/逐字段（value/cookie/label）/顺序分支，`undefined` 与 `""` 等价、`updatedAt` 不参与比较 |
-| `test-cloud-sync-flow.mjs` | 离线 | **云同步 push/pull 集成**（22 项断言）：mock fetch + mock vscode 驱动真实 `pushToCloud`/`pullFromCloud`——push 新建/PATCH/无变更短路/空 store 警告、**push 记录服务端 `updated_at`**、pull 合并（cookie/label 覆盖 + 可用性保留 + 追加新 key）、静默跳过、缓存 gist 失效回退 |
+| `test-batch-import.mjs` | 离线 | **批量导入解析器**（14 项断言）：`key---credential---备注;` 格式、空字段、备注含分隔符、容错 |
+| `test-banned-rotation.mjs` | 离线 | **封号错误检测**（9 项断言）：`errorRules` 中 `code=billing` 命中判定、`reason` 取规则 message、持久化失效、key 跳过、`REASON_TEXT["banned"]`、自定义/空规则 |
+| `test-cloud-sync-auto-push.mjs` | 离线 | **云同步 payload 去重**（16 项断言）：`syncPayloadHasChanged` 的空值/版本/长度/逐字段（value/credential/label）/顺序分支，`undefined` 与 `""` 等价、`updatedAt` 不参与比较 |
+| `test-cloud-sync-flow.mjs` | 离线 | **云同步 push/pull 集成**（22 项断言）：mock fetch + mock vscode 驱动真实 `pushToCloud`/`pullFromCloud`——push 新建/PATCH/无变更短路/空 store 警告、**push 记录服务端 `updated_at`**、pull 合并（credential/label 覆盖 + 可用性保留 + 追加新 key）、静默跳过、缓存 gist 失效回退 |
 | `test-cloud-sync-e2e.mjs` | 联网 | **云同步真实端到端**（16 项断言，`npm run test:e2e`）：真实 GitHub Gist API 驱动生产代码，验证请求体格式/响应结构/`updated_at`/内容往返。创建**专用测试 Gist**（描述带随机后缀）并在 finally 删除，**绝不触碰用户真实同步 Gist**；凭据从 `GITHUB_TOKEN`/`GH_TOKEN` 或 `gh auth token` 读取，无凭据时 SKIP 退出 0 |
 | `test-apply-token.mjs` | 联网 | public_key 换发短期 token（平台专属，移植时按需替换） |
 | `test-model-diff.mjs` | 联网 | 内置清单 vs `/v1/models` 差异（内置清单从编译产物读取，不会脱节） |

@@ -166,7 +166,7 @@ await check("429 → 换 key（仅内存冷却，不持久化）", async () => {
 console.log("500 平台错误（不换 key）");
 
 await check("500 → 不换 key，退避后重试同一个 key", async () => {
-    settings = { transientRetryTimes: 1, transientRetryStatusCodes: [500] };
+    settings = { transientRetryTimes: 1 };
     const secrets = makeSecrets();
     await reset(secrets, [K("a"), K("b")]);
     const tried = [];

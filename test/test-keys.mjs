@@ -7,7 +7,7 @@
  *  3. getPrimaryApiKey：single / rotation / sticky 三种模式
  *  4. shouldSingleKeyFallbackSwitch：仅 balance 原因才切换
  *  5. setActiveKeyByValue：按值移动 activeIndex
- *  6. store 增删改：addApiKey / addApiKeys（cookie 更新）/ removeApiKey / updateApiKey（冲突校验）
+ *  6. store 增删改：addApiKey / addApiKeys（credential 更新）/ removeApiKey / updateApiKey（冲突校验）
  *  7. 旧版单 key 迁移
  *
  * 运行前需 `npm run compile`。

@@ -10,14 +10,19 @@
 
 ### 新增
 
+- **sticky 模式手动钉住 key**：`sticky` 模式改用持久化的 `activeIndex`（而非内存游标）钉住当前 key，并支持在「管理 API Keys」界面手动「设为当前使用」指定钉住的 key。「设为当前使用」在 `single`/`sticky` 模式显示，仅 `rotation` 模式隐藏。
+- **瞬态重试耗尽友好错误**：`retrySameKey` 规则（如 500 / 上游流中断）重试次数用尽时抛出 `TransientRetryExhaustedError`——友好文案 + 原始错误后缀，替代过于原始的 500/429 报错。
 - **云同步自动推送**：新增设置 `cloudSyncAutoPush`（默认关闭）——key 管理操作后去抖 2.5s 静默推送本地变更到云端 Gist；本地与云端一致时短路不写 Gist。新增纯函数模块 `src/cloud/syncPayload.ts`（`syncPayloadHasChanged`）供去重逻辑与离线测试共用。
 - **云同步时间戳口径统一**：push 记录服务端 `updated_at`（与 pull 侧一致），消除客户端时钟偏差导致的 push 后必然多拉一次。新增跨窗口锁 `cloudSyncLockUntil` 防止两窗口同时写 Gist。
 - **离线测试**：`test-keys.mjs`（Key 选择与状态，18 项断言）、`test-rotation.mjs`（轮换循环，7 项断言）、`test-banned-rotation.mjs`（封号错误检测，9 项断言，直接导入编译产物）、`test-cloud-sync-auto-push.mjs`（payload 去重，16 项断言）、`test-cloud-sync-flow.mjs`（push/pull 集成，22 项断言）。
 - **联网测试**：`test-cloud-sync-e2e.mjs`（真实 GitHub Gist 端到端，16 项断言，`npm run test:e2e`；无凭据时 SKIP 退出 0）。
-- **封号 patterns 可配置**：新增设置 `apiKeyBannedErrorPatterns`（默认 `["计费账户已被冻结", "\"code\":\"billing\"", "ref_code:400901"]`），命中即判定为封号（`reason="banned"`，持久化失效），与普通换 key 区分。
+- **错误分类规则统一（errorRules 四元组）**：新增设置 `errorRules`（四元组：code + message + statusCode + action），**只配置这一处**即可覆盖所有错误分类——`code`（错误体 error.code 精确匹配，主要字段）优先于 `statusCode`（HTTP 兜底），`action` 与 key 状态一一对应（`retrySameKey` 不换 key / `rotateCooldown` 冷却 / `rotatePersist` 持久化失效）。封号判定改为 `code=billing` 规则（`rotatePersist`），替代此前的 `apiKeyBannedErrorPatterns` 文本匹配。
 
 ### 变更
 
+- **状态栏设置精简**：合并 `showUsageInStatusBar` / `showUsageInTooltip` 为单一设置 `showUsage`（默认开启）——关闭即隐藏整个状态栏（`isStatusBarEnabled()` = `showUsage`）。状态栏项重命名为「剩余用量」（Remaining Usage）。
+- **移除死设置**：删除 `enableThirdPartyTokenIndicator`（及其累计 token 计数器 `recordUsage` / `resetCumulativeCounters` / `updateCumulativeTooltip` / `updateStatusBarWithApiPrompt` / `formatTokenCount` / `createProgressBar`）与 `retry.statusCodes`（HTTP 层重试按设计固定为网关错误 502/504 + 网络错误）。
+- **状态栏主文本**：额度内显示 5 小时窗口已用百分比，月度额度耗尽显示余额；移除 token 计数回退。悬停提示移除累计 Token 行，仅保留套餐用量 + 余额。
 - **精简命令面板**：移除 5 个与设置或其他命令重复的命令——`setApiKey`（旧版单 key 流程）、`getApiKey`（官网链接，改由欢迎页提供）、`setModelPreset`（改用 `modelPreset` 设置）、`setVisionProxyModel`（改用 `visionProxyModel` 设置）、`checkUsage`（命令面板隐藏，仅保留状态栏点击）。provider 的 `managementCommand` 重定向到 `manageApiKeys`（齿轮图标）。
 - 删除 `src/commands/modelPresetCommand.ts` / `src/commands/visionProxyCommand.ts` 与已无引用的 `getVisionSupportedModelIds` / `PLATFORM_API_KEY_URL`。
 - 清理上述命令遗留的死 l10n 键；静默启动自动拉取不再弹通知（移除 `Cloud sync: pulled {0} keys from Gist on startup`）。
@@ -25,7 +30,6 @@
 - 升级 `@types/node` 22 → 26、`eslint` 9 → 10、`@eslint/js` 9 → 10、`typescript-eslint` 8.60 → 8.71。
 - 修复 eslint 10 新规则报出的 5 处问题（`no-useless-assignment` × 2、`preserve-caught-error` × 3）。
 - 修复 2 个高危依赖漏洞（`brace-expansion` / `js-yaml`）。
-- 封号 patterns 从 `src/keys/health.ts` 硬编码改为经 `getBannedErrorPatterns()` 读取设置；`getRotationErrorPatterns()` 默认值移除封号相关文案（改由 `apiKeyBannedErrorPatterns` 承担）。
 - 删除无断言的 `test-banned-detect.mjs`（其覆盖已并入 `test-banned-rotation.mjs`）。
 
 ## [1.0.0] - 2026-10-07
