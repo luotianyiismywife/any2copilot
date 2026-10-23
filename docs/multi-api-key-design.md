@@ -120,10 +120,7 @@ const transientExhausted = new Map<string, TransientExhausted>();
 | `hasTransientExhaustedKey(secrets)` | 异步 | 是否存在冷却中的 key（供"全部不可选"时判断是否值得整轮自动重试） |
 | `isApiKeyEligible(entry)` | 同步 | 判断是否可被选中（非冷却中、非 `available=false`） |
 | `matchErrorRule(err)` | 同步 | 按 `errorRules` 四元组匹配错误（`code` 精确匹配优先于 `statusCode` 兜底），返回命中的规则或 undefined |
-| `isKeyRotationError(err)` | 同步 | 命中 `rotateCooldown` / `rotatePersist` → 应换 key；`retrySameKey` 不换 |
-| `isTransientRetryError(err)` | 同步 | 命中 `retrySameKey` / `rotateCooldown` → 瞬态类，值得整轮自动重试 |
-| `getKeyRotationReason(err)` | 同步 | 取命中规则的 `message` 说明（供日志/报错展示） |
-| `getKeyUnavailableReason(entry)` | 同步 | 取当前不可用原因（供报错展示）：冷却中→`rate_limited`/`server_error`；持久化不可用→`unavailable`；其他→`balance` |
+| `getKeyUnavailableReason(entry)` | 同步 | 取当前不可用原因（供报错展示）：冷却中→命中规则的 `message`；持久化不可用→"不可用"；未检测→"未检测" |
 | `markApiKeyExhausted(secrets, key, reason, action)` | 异步 | 按 `action` 决定处置：`rotateCooldown` → 仅内存冷却不持久化；`rotatePersist` → 持久化 `available=false` |
 | `markApiKeyAvailable(secrets, key)` | 异步 | 置 `available=true`，清冷却（自愈/手动检测通过） |
 | `updateKeyAvailability(secrets, key, available)` | 异步 | 通用状态更新 |
@@ -233,7 +230,7 @@ while (true):
 本模块**与平台无关**，直接复用。移植时只需：
 
 1. **配置前缀**：`<prefix>` 全局替换（见 `PLATFORM_PORTING.md` §1.2）。
-2. **错误分类规则**：调整 `src/keys/config.ts` 的 `DEFAULT_ERROR_RULES`（设置 `errorRules`）：
+2. **错误分类规则**：调整 `package.json` 的 `errorRules` 默认值（`src/keys/config.ts` 的 `getErrorRules` 只从 `package.json` 读取，代码不重复）：
    - `code` 默认值（`billing` / `upstream_stream_error` / `INSUFFICIENT_BALANCE`）是示例，按你平台的错误响应体 `error.code` 调整
    - `statusCode` 兜底规则（401/402/429/503/400/500）是通用 HTTP 语义，通常无需改动
    - 详见 [`retry-and-key-rotation.md`](retry-and-key-rotation.md)

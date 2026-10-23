@@ -79,7 +79,7 @@ npm run audit     # 7 项审计
 | **视觉能力兜底** | `src/models/visionModels.ts` → `HARDCODED_VISION` | 填入你平台自研模型的视觉能力（可留空） |
 | **账号信息字段映射** | `src/balance/accountInfo.ts` → `queryAccountInfo()` | 按你平台的响应结构改写解析 |
 | **积分换算比例** | `src/balance/accountInfo.ts` → `POINTS_PER_CNY` | 实测校正（各平台不同） |
-| **错误分类规则** | `src/keys/config.ts` → `DEFAULT_ERROR_RULES` | 四元组（code + message + statusCode + action）。`code` 默认值是平台专属示例，按你平台错误响应体的 `error.code` 替换；`statusCode` 兜底为通用 HTTP 语义，通常无需改动（见 [`retry-and-key-rotation.md`](retry-and-key-rotation.md) §3.1） |
+| **错误分类规则** | `package.json` → `errorRules` 的 `default` | 四元组（code + message + statusCode + action）。`code` 默认值是平台专属示例，按你平台错误响应体的 `error.code` 替换；`statusCode` 兜底为通用 HTTP 语义，通常无需改动（见 [`retry-and-key-rotation.md`](retry-and-key-rotation.md) §3.1） |
 | **欢迎页文案** | `resources/walkthrough/*.md` | 平台名与说明 |
 | **本地化文案** | `src/core/localize.ts` + `package.nls*.json` | 平台专属文案 |
 

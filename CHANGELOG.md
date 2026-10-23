@@ -36,6 +36,13 @@
   - **状态栏重构**：删除高级 Token 指示器（`enableThirdPartyTokenIndicator`）及其累计计数器；`showUsageInStatusBar`/`showUsageInTooltip` 合并为单一 `showUsage`（关闭则隐藏状态栏）；主文本改为 5h 窗口已用百分比或余额；状态栏重命名为「剩余用量」（Remaining Usage）；常态化显示。
   - **HTTP 层重试**：删除 `retry.statusCodes` 设置，HTTP 层重试仅限网关错误（502/504）与网络错误。
   - **错误处理**：新增 `TransientRetryExhaustedError`（瞬态错误同 key 重试耗尽后的友好错误）；全部 key 不可用报错提示「重置失效状态」。
+- **对齐 sense-audio-copilot 死代码清理**：
+  - **`errorRules` 单一事实来源**：删除 `src/keys/config.ts` 的代码内 `DEFAULT_ERROR_RULES` 副本，`getErrorRules` 只从 `package.json` 读取（避免两处默认值漂移）。
+  - **删除死函数**：删除 `isKeyRotationError` / `isTransientRetryError` / `getKeyRotationReason`（errorRules 重构后 `matchErrorRule` 已取代，无调用点）。
+  - **`getKeyUnavailableReason` 返回可读文案**：改为 `l10n("Unavailable")` / `l10n("Not checked")`（原返回机器码）；`buildAllKeysUnavailableDetail` 直接用其可读文案，删除 `REASON_TEXT` 映射表及 5 个未使用 l10n 键。
+  - **`storeMatchesRaw` 补 `label` 比较**：`storeEqualsRaw` 改名 `storeMatchesRaw`，语义比较补上 `label` 字段（修复 label 变化时缓存语义比较误判）。
+  - **`pickAccountCredential` 去掉 `?? store.keys[0]` 回退**：对齐 senseaudio，直接取 `activeIndex` 的 key。
+  - **测试对齐**：`test-transient-retry.mjs` / `test-banned-rotation.mjs` / `test-rotation.mjs` 的 shim 提供 `DEFAULT_ERROR_RULES` fallback；测试内用 `matchErrorRule` 派生语义断言；删除 `REASON_TEXT` 断言。
 
 ### 文档
 

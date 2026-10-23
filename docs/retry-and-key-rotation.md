@@ -44,7 +44,7 @@
 | `rotateCooldown` | 瞬态限流/繁忙（429/503） | ✅ | 冷却中（仅内存冷却，到期自动恢复） |
 | `rotatePersist` | 确定性失败（余额不足/无效 key/封号） | ✅ | 不可用（持久化 `available=false`） |
 
-**默认规则**（`src/keys/config.ts` 的 `DEFAULT_ERROR_RULES`，基于实测）：
+**默认规则**（`package.json` 的 `errorRules` 默认值，基于实测）：
 
 | 规则 | 匹配 | action |
 |------|------|--------|
@@ -247,7 +247,7 @@ HTTP 层重试**仅限网关错误（502/504）与网络错误**，与整轮层�
 
 本模块**与平台无关**，直接复用。移植时按新平台的错误语义调整默认值：
 
-1. **错误分类规则**：`src/keys/config.ts` 的 `DEFAULT_ERROR_RULES`（设置 `errorRules`）——`code` 默认值（`billing` / `upstream_stream_error` / `INSUFFICIENT_BALANCE`）是示例，按你平台的错误响应体 `error.code` 调整；`statusCode` 兜底规则（401/402/429/503/400/500）是通用 HTTP 语义，通常无需改动
+1. **错误分类规则**：`package.json` 的 `errorRules` 默认值（`src/keys/config.ts` 的 `getErrorRules` 只从 `package.json` 读取，代码不重复）——`code` 默认值（`billing` / `upstream_stream_error` / `INSUFFICIENT_BALANCE`）是示例，按你平台的错误响应体 `error.code` 调整；`statusCode` 兜底规则（401/402/429/503/400/500）是通用 HTTP 语义，通常无需改动
 2. **HTTP 层重试状态码**：`src/core/utils.ts` 的 `RETRYABLE_STATUS_CODES`（默认 `[502, 504]`）——网关错误，通常无需改动
 
 > 排查方法见 `.copilot/api-reference.md`——用真实请求触发各类错误，记录状态码与响应体，据此调整上述默认值。

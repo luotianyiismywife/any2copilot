@@ -5,9 +5,8 @@
  *  1. 封号错误（errorRules code=billing）→ isKeyRotationError 命中 + reason = 规则 message
  *  2. 封号是确定性失败 → markApiKeyExhausted 持久化 available=false
  *  3. 封号 key 被 pickNextApiKey 跳过
- *  4. 全部 key 封号 → 报错显示 REASON_TEXT["banned"]
- *  5. 自定义 errorRules（code 可配置）
- *  6. 400 状态码本身不触发轮换（code 优先）
+ *  4. 自定义 errorRules（code 可配置）
+ *  5. 400 状态码本身不触发轮换（code 优先）
  *
  * 运行前需 `npm run compile`。
  * 用法：node test/test-banned-rotation.mjs
@@ -22,11 +21,25 @@ const Module = require("node:module");
 const originalLoad = Module._load;
 
 let settings = {};
+
+// 默认 errorRules（镜像 package.json 的 default——shim 不经过 package.json）
+const DEFAULT_ERROR_RULES = [
+    { code: "billing", message: "计费账户已被冻结（封号）", action: "rotatePersist" },
+    { code: "upstream_stream_error", message: "上游模型流意外中断", action: "retrySameKey" },
+    { code: "INSUFFICIENT_BALANCE", message: "余额不足", action: "rotatePersist" },
+    { statusCode: 401, message: "无效 key", action: "rotatePersist" },
+    { statusCode: 402, message: "余额不足", action: "rotatePersist" },
+    { statusCode: 429, message: "限流", action: "rotateCooldown" },
+    { statusCode: 503, message: "服务端繁忙", action: "rotateCooldown" },
+    { statusCode: 400, message: "上游中断复用 400", action: "retrySameKey" },
+    { statusCode: 500, message: "内部错误", action: "retrySameKey" },
+];
 const vscodeShim = {
     env: { language: "en" },
     workspace: {
         getConfiguration: () => ({
-            get: (key, fallback) => (key in settings ? settings[key] : fallback),
+            get: (key, fallback) =>
+                key in settings ? settings[key] : fallback ?? (key === "errorRules" ? DEFAULT_ERROR_RULES : undefined),
         }),
     },
     window: {
@@ -49,15 +62,20 @@ function makeSecrets(initial = {}) {
     };
 }
 
-const { isKeyRotationError, getKeyRotationReason, markApiKeyExhausted, isApiKeyEligible } =
-    require("../out/keys/health.js");
+const { matchErrorRule, markApiKeyExhausted, isApiKeyEligible } = require("../out/keys/health.js");
 const { getApiKeyStore, saveApiKeyStore, invalidateApiKeyStoreCache } = require("../out/keys/store.js");
 const { pickNextApiKey } = require("../out/keys/selection.js");
 const { resetExhaustedKeys } = require("../out/keys/health.js");
 const { setRotationIndex } = require("../out/keys/state.js");
-const { REASON_TEXT } = require("../out/provider/errors.js");
 const { logger } = require("../out/core/logger.js");
 logger.init();
+
+// 从 matchErrorRule 派生语义断言（生产代码直接用 matchErrorRule，不再导出薄封装）
+const isKeyRotationError = (err) => {
+    const r = matchErrorRule(err);
+    return r !== undefined && r.action !== "retrySameKey";
+};
+const getKeyRotationReason = (err) => matchErrorRule(err)?.message;
 
 let passed = 0;
 async function check(name, fn) {
@@ -136,16 +154,7 @@ await check("pickNextApiKey 跳过封号 key", async () => {
 });
 
 // ---------------------------------------------------------------------------
-// 4. 报错文案
-// ---------------------------------------------------------------------------
-console.log("报错文案");
-
-await check("REASON_TEXT 含 banned 文案", () => {
-    assert.equal(REASON_TEXT["banned"], "Account banned (billing frozen)");
-});
-
-// ---------------------------------------------------------------------------
-// 5. 自定义 errorRules
+// 4. 自定义 errorRules
 // ---------------------------------------------------------------------------
 console.log("自定义 errorRules");
 
@@ -157,9 +166,9 @@ await check("自定义规则生效（新增 code）", () => {
     settings = {};
 });
 
-await check("清空规则后回退默认（billing 仍识别）", () => {
+await check("清空规则后无规则匹配（errorRules=[] 禁用所有规则）", () => {
     settings = { errorRules: [] };
-    assert.equal(getKeyRotationReason(bannedError()), "计费账户已被冻结（封号）");
+    assert.equal(getKeyRotationReason(bannedError()), undefined);
     settings = {};
 });
 

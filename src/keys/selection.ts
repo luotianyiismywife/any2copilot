@@ -150,19 +150,22 @@ export async function setActiveKeyByValue(secrets: vscode.SecretStorage, keyValu
 }
 
 /**
- * 从 store 选取账号级平台登录凭据（余额 / 套餐用量查询用）。
- * 优先当前使用 key 绑定的凭据，否则第一个绑定了凭据的 key。
- * 均无凭据时返回 undefined。
+ * 从 store 中选取账号级平台登录凭据（余额/套餐用量查询用）。
+ *
+ * 余额按**账号**粒度，所有 key 共享同一份凭据。优先取当前使用 key 的凭据，
+ * 否则取第一个绑定了凭据的 key。均无凭据时返回 undefined（UI 显示"余额未知"）。
  */
 export function pickAccountCredential(store: ApiKeyStore): string | undefined {
-    const active = store.keys[store.activeIndex] ?? store.keys[0];
+    const active = store.keys[store.activeIndex];
     if (active?.credential) {
         return active.credential;
     }
     return store.keys.find((k) => k.credential)?.credential;
 }
 
-/** `pickAccountCredential` 的异步便捷封装（自行读取 store）。 */
+/**
+ * 读取 store 并选取账号级平台登录凭据（异步便捷封装）。
+ */
 export async function getAccountCredential(secrets: vscode.SecretStorage): Promise<string | undefined> {
     return pickAccountCredential(await getApiKeyStore(secrets));
 }

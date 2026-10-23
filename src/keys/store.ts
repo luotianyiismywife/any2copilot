@@ -78,21 +78,18 @@ export async function getApiKeyStore(secrets: vscode.SecretStorage): Promise<Api
     // `value, credential, label` vs 归一化的 `value, label, credential`），
     // 字符串比较会永远不相等 → 缓存被永久禁用（每次读取都访问 SecretStorage）。
     void secrets.get(STORE_KEY).then((fresh) => {
-        if (fresh && !storeEqualsRaw(fresh, store)) {
+        if (fresh && !storeMatchesRaw(fresh, store)) {
             invalidateApiKeyStoreCache();
         }
     });
     return store;
 }
 
-/** 语义比较 SecretStorage 原始 JSON 与内存 store（忽略字段顺序）。 */
-function storeEqualsRaw(raw: string, store: ApiKeyStore): boolean {
+/** 语义比较：SecretStorage 原始字符串与内存 store 是否等价（忽略字段顺序）。 */
+function storeMatchesRaw(raw: string, store: ApiKeyStore): boolean {
     try {
-        const parsed = JSON.parse(raw) as ApiKeyStore;
-        if (!parsed || !Array.isArray(parsed.keys)) {
-            return false;
-        }
-        if (parsed.keys.length !== store.keys.length) {
+        const parsed = JSON.parse(raw) as Partial<ApiKeyStore>;
+        if (!Array.isArray(parsed.keys) || parsed.keys.length !== store.keys.length) {
             return false;
         }
         if ((parsed.activeIndex ?? 0) !== store.activeIndex) {
@@ -102,7 +99,8 @@ function storeEqualsRaw(raw: string, store: ApiKeyStore): boolean {
             const s = store.keys[i];
             return (
                 k.value === s.value &&
-                (k.credential ?? (k as { cookie?: string }).cookie ?? undefined) === (s.credential ?? undefined) &&
+                (k.label ?? undefined) === (s.label ?? undefined) &&
+                ((k.credential ?? (k as { cookie?: string }).cookie) ?? undefined) === (s.credential ?? undefined) &&
                 (k.available ?? null) === (s.available ?? null) &&
                 (k.lastCheckedAt ?? undefined) === (s.lastCheckedAt ?? undefined)
             );

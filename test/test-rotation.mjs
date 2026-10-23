@@ -23,11 +23,25 @@ const Module = require("node:module");
 const originalLoad = Module._load;
 
 let settings = {};
+
+// 默认 errorRules（镜像 package.json 的 default——shim 不经过 package.json）
+const DEFAULT_ERROR_RULES = [
+    { code: "billing", message: "计费账户已被冻结（封号）", action: "rotatePersist" },
+    { code: "upstream_stream_error", message: "上游模型流意外中断", action: "retrySameKey" },
+    { code: "INSUFFICIENT_BALANCE", message: "余额不足", action: "rotatePersist" },
+    { statusCode: 401, message: "无效 key", action: "rotatePersist" },
+    { statusCode: 402, message: "余额不足", action: "rotatePersist" },
+    { statusCode: 429, message: "限流", action: "rotateCooldown" },
+    { statusCode: 503, message: "服务端繁忙", action: "rotateCooldown" },
+    { statusCode: 400, message: "上游中断复用 400", action: "retrySameKey" },
+    { statusCode: 500, message: "内部错误", action: "retrySameKey" },
+];
 const vscodeShim = {
     env: { language: "en" },
     workspace: {
         getConfiguration: () => ({
-            get: (key, fallback) => (key in settings ? settings[key] : fallback),
+            get: (key, fallback) =>
+                key in settings ? settings[key] : fallback ?? (key === "errorRules" ? DEFAULT_ERROR_RULES : undefined),
         }),
     },
     window: {

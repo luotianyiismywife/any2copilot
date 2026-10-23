@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { l10n } from "../core/localize";
 import { getErrorRules, getExhaustedCooldownMin, type ErrorAction, type ErrorRule } from "./config";
 import { getTransientExhaustedMap } from "./state";
 import { getApiKeyStore, saveApiKeyStore } from "./store";
@@ -92,36 +93,10 @@ export function matchErrorRule(err: unknown): ErrorRule | undefined {
 }
 
 /**
- * 判断错误是否应触发 key 轮换（换 key）。
- * 命中 `rotateCooldown` / `rotatePersist` 规则时换 key；`retrySameKey` 不换。
- */
-export function isKeyRotationError(err: unknown): boolean {
-    const rule = matchErrorRule(err);
-    return rule !== undefined && rule.action !== "retrySameKey";
-}
-
-/**
- * 判断错误是否为"瞬态类"（值得整轮自动重试）。
- * 命中 `retrySameKey` / `rotateCooldown` 规则时为瞬态（`rotatePersist` 为确定性）。
- */
-export function isTransientRetryError(err: unknown): boolean {
-    const rule = matchErrorRule(err);
-    return rule !== undefined && rule.action !== "rotatePersist";
-}
-
-/**
- * 从错误中提取失效原因（规则的 `message` 说明，供日志/报错展示）。
- * 均未命中返回 undefined。
- */
-export function getKeyRotationReason(err: unknown): string | undefined {
-    return matchErrorRule(err)?.message;
-}
-
-/**
- * 获取 key 当前不可用的机器可读原因（供"全部 key 不可用"报错展示）：
- * - 瞬态冷却中（429/503）→ "rate_limited" / "server_error"
- * - 持久化不可用（available=false）→ "unavailable"
- * - 其他（未检测 / 余额不足 / 封号）→ "balance"
+ * 获取 key 当前不可用的**可读原因**（供"全部 key 不可用"报错展示）：
+ * - 冷却中 → 命中规则的 `message`（如"限流"）
+ * - 持久化不可用（available=false）→ "不可用"
+ * - 未检测 → "未检测"
  */
 export function getKeyUnavailableReason(entry: ApiKeyEntry): string {
     const transient = getTransientExhaustedInfo(entry.value);
@@ -129,9 +104,9 @@ export function getKeyUnavailableReason(entry: ApiKeyEntry): string {
         return transient.reason;
     }
     if (entry.available === false) {
-        return "unavailable";
+        return l10n("Unavailable");
     }
-    return "balance";
+    return l10n("Not checked");
 }
 
 /**

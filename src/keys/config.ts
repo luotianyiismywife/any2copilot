@@ -50,38 +50,16 @@ export interface ErrorRule {
 /**
  * 默认错误分类规则。
  *
- * ⚠️ **移植对接点**：`code` 默认值（`billing` / `upstream_stream_error` /
- * `INSUFFICIENT_BALANCE`）是示例（某平台的实测错误码），移植时按你平台的
- * 错误响应体 `error.code` 调整。`statusCode` 兜底规则（401/402/429/503/400/500）
- * 是通用 HTTP 语义，通常无需改动。
- */
-const DEFAULT_ERROR_RULES: ErrorRule[] = [
-    // 错误体 code 精确匹配（主要匹配字段）
-    { code: "billing", message: "计费账户已被冻结（封号）", action: "rotatePersist" },
-    { code: "upstream_stream_error", message: "上游模型流意外中断", action: "retrySameKey" },
-    { code: "INSUFFICIENT_BALANCE", message: "余额不足", action: "rotatePersist" },
-    // HTTP 状态码兜底
-    { statusCode: 401, message: "无效 key", action: "rotatePersist" },
-    { statusCode: 402, message: "余额不足", action: "rotatePersist" },
-    { statusCode: 429, message: "限流", action: "rotateCooldown" },
-    { statusCode: 503, message: "服务端繁忙", action: "rotateCooldown" },
-    { statusCode: 400, message: "上游中断复用 400", action: "retrySameKey" },
-    { statusCode: 500, message: "内部错误", action: "retrySameKey" },
-];
-
-/**
- * 读取错误分类规则（四元组：code + message + statusCode + action）。
- *
- * **只配置这一处**即可覆盖所有错误分类：`code`（错误体 error.code 精确匹配，
- * **主要匹配字段**）优先于 `statusCode`（HTTP 状态码兜底）；`message` 仅作
- * 可读性说明不参与匹配；处置由 `action` 决定，与 key 状态一一对应
- * （`retrySameKey` 状态不变 / `rotateCooldown` 冷却中 / `rotatePersist` 不可用）。
- * 规则按数组顺序匹配，首个命中即生效。
+ * ⚠️ **移植对接点**：默认规则**只在 `package.json` 的 `contributes.configuration`
+ * 中声明一份**（`errorRules` 的 `default`），代码中不重复——避免两处默认值漂移。
+ * 移植时按你平台的错误响应体 `error.code` 调整 `package.json` 中的 `code` 默认值；
+ * `statusCode` 兜底规则（401/402/429/503/400/500）是通用 HTTP 语义，通常无需改动。
  */
 export function getErrorRules(): ErrorRule[] {
-    const raw = getConfig().get<ErrorRule[]>("errorRules", DEFAULT_ERROR_RULES);
+    // 不传 fallback：VS Code 自动使用 package.json 中声明的 default
+    const raw = getConfig().get<ErrorRule[]>("errorRules");
     if (!Array.isArray(raw) || raw.length === 0) {
-        return DEFAULT_ERROR_RULES;
+        return [];
     }
     return raw.filter(
         (r): r is ErrorRule =>

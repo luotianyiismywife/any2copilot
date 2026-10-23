@@ -25,7 +25,7 @@
         ↓
 ⑤ 对接账号信息          src/balance/accountInfo.ts 的 queryAccountInfo()
         ↓
-⑥ 调错误分类            src/keys/config.ts 的 DEFAULT_ERROR_RULES
+⑥ 调错误分类            package.json 的 errorRules 默认值（getErrorRules 只从 package.json 读取）
         ↓
 ⑦ 实测平台特性          .copilot/platform-quirks.md（按清单逐项探测）
         ↓
@@ -107,7 +107,7 @@
 
 ### 2.3 错误语义
 
-- [ ] 限流特征：429/402/401 的语义与返回体（`src/keys/config.ts` 的 `DEFAULT_ERROR_RULES`）
+- [ ] 限流特征：429/402/401 的语义与返回体（`package.json` 的 `errorRules` 默认值）
 - [ ] 错误体是否带 `error.code`（决定 `code` 精确匹配能否生效）
 - [ ] 封号/冻结的返回特征（`code=billing` 之类）
 - [ ] 平台侧错误（500 / 上游流中断）是否与 key 无关

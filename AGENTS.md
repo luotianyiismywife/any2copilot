@@ -479,7 +479,7 @@ test/                                     # 测试脚本（运行前需 npm run 
 | `provider/rotation.ts` | `runKeyRotationLoop()`：多 key 轮换循环 |
 | `provider/apiDispatch.ts` | `executeApiRequest()`：三协议分发、请求体构建、流式处理、零正文检测 |
 | `provider/visionRounds.ts` | `handleInterceptedToolCall()`：ask_image 图片代理多轮 |
-| `provider/errors.ts` | `VisionRoundError`（视觉代理轮内失败标记，不触发 key 轮换）/ `TransientRetryExhaustedError`（`retrySameKey` 重试耗尽后的友好错误）/ `REASON_TEXT` / `buildAllKeysUnavailableDetail` / `tryTransientRetryRound` / `checkZeroAnswerBudgetExhausted` / `reportNativeUsage` / `getRequestedReasoningEffort` |
+| `provider/errors.ts` | `VisionRoundError`（视觉代理轮内失败标记，不触发 key 轮换）/ `TransientRetryExhaustedError`（`retrySameKey` 重试耗尽后的友好错误）/ `buildAllKeysUnavailableDetail` / `tryTransientRetryRound` / `checkZeroAnswerBudgetExhausted` / `reportNativeUsage` / `getRequestedReasoningEffort` |
 | `keys/keyManager.ts` | barrel：统一导出 `keys/` 下全部 API |
 | `keys/store.ts` | SecretStorage 读写与旧版单 key 迁移、增删改（含缓存语义比较） |
 | `keys/selection.ts` | `getPrimaryApiKey` / `pickNextApiKey` / `shouldSingleKeyFallbackSwitch` / `setActiveKeyByValue` / `pickAccountCredential` / `getAccountCredential` |
@@ -545,7 +545,7 @@ test/                                     # 测试脚本（运行前需 npm run 
 | `src/balance/accountInfo.ts` → `queryAccountInfo()` | 账号信息端点 + 响应字段映射（填充 `AccountInfo`） |
 | `src/balance/accountInfo.ts` → `POINTS_PER_CNY` | 代金券积分换算比例（各平台不同，务必实测） |
 | `src/balance/planUsage.ts` → `buildSnapshot()` | **已是通用逻辑**；仅当平台窗口 key 命名不同时才需调整 `classifyWindow` |
-| `src/keys/config.ts` → `DEFAULT_ERROR_RULES` | 错误分类规则默认值：`code`（错误体 error.code）为示例，按你平台替换；`statusCode` 兜底为通用 HTTP 语义 |
+| `src/keys/config.ts` → `getErrorRules` | 错误分类规则默认值**只在 `package.json` 的 `errorRules` 声明一份**（代码不重复，避免漂移）：`code`（错误体 error.code）为示例，按你平台替换；`statusCode` 兜底为通用 HTTP 语义 |
 
 > **两种数据格式均支持**：`usageInfos` 为空 → 状态栏只显示余额行；有窗口 → 归一化 5h/周/月。
 > 若新平台无账号/余额概念，让 `queryAccountInfo()` 抛错即可——UI 显示"余额未知"，其余功能不受影响。
@@ -644,7 +644,7 @@ test/                                     # 测试脚本（运行前需 npm run 
 - `keys/store.ts`：`getApiKeyStore` / `saveApiKeyStore` / `invalidateApiKeyStoreCache` / `addApiKey` / `addApiKeys` / `removeApiKey` / `setActiveKey` / `setKeyCredential` / `updateApiKey`
 - `keys/state.ts`：`getStoreCache` / `setStoreCache` / `getRotationIndex` / `setRotationIndex` / `getTransientExhaustedMap` / `onApiKeyStoreChanged` / `notifyApiKeyStoreChanged`
 - `keys/selection.ts`：`getPrimaryApiKey` / `pickNextApiKey` / `shouldSingleKeyFallbackSwitch` / `setActiveKeyByValue` / `pickAccountCredential` / `getAccountCredential`
-- `keys/health.ts`：`getTransientExhaustedInfo` / `isApiKeyEligible` / `hasTransientExhaustedKey` / `matchErrorRule`（errorRules 四元组匹配）/ `isKeyRotationError` / `isTransientRetryError` / `getKeyRotationReason` / `getKeyUnavailableReason` / `markApiKeyExhausted`（按 action 决定冷却/持久化）/ `markApiKeyAvailable` / `updateKeyAvailability` / `resetExhaustedKeys` / `getKeyDisplayStatus`
+- `keys/health.ts`：`getTransientExhaustedInfo` / `isApiKeyEligible` / `hasTransientExhaustedKey` / `matchErrorRule`（errorRules 四元组匹配）/ `getKeyUnavailableReason`（返回可读文案）/ `markApiKeyExhausted`（按 action 决定冷却/持久化）/ `markApiKeyAvailable` / `updateKeyAvailability` / `resetExhaustedKeys` / `getKeyDisplayStatus`
 - `keys/availability.ts`：`testKeyAvailability`（最小真实聊天请求）
 - `keys/mask.ts`：`maskApiKey` / `maskCredential`
 
@@ -655,7 +655,7 @@ test/                                     # 测试脚本（运行前需 npm run 
 - `rotation.ts`：`runKeyRotationLoop(params)`
 - `apiDispatch.ts`：`executeApiRequest(params)`
 - `visionRounds.ts`：`handleInterceptedToolCall(params)`
-- `errors.ts`：`VisionRoundError`（视觉代理轮内失败标记，不触发 key 轮换）/ `TransientRetryExhaustedError`（`retrySameKey` 重试耗尽后的友好错误）/ `REASON_TEXT` / `checkZeroAnswerBudgetExhausted` / `buildAllKeysUnavailableDetail` / `tryTransientRetryRound` / `reportNativeUsage` / `getRequestedReasoningEffort`
+- `errors.ts`：`VisionRoundError`（视觉代理轮内失败标记，不触发 key 轮换）/ `TransientRetryExhaustedError`（`retrySameKey` 重试耗尽后的友好错误）/ `checkZeroAnswerBudgetExhausted` / `buildAllKeysUnavailableDetail` / `tryTransientRetryRound` / `reportNativeUsage` / `getRequestedReasoningEffort`
 
 ### 5.6 `src/api/` 模块
 
