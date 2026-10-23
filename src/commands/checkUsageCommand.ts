@@ -13,6 +13,7 @@ import { logger } from "../core/logger";
 import { LOGIN_TOKEN_SOURCE_HINT } from "../platform/platformConfig";
 import { getAccountCredential } from "../keys/keyManager";
 import {
+    formatBalanceSummary,
     formatUsageSummary,
     getPlanUsageFetchStatus,
 } from "../balance/balanceCheck";
@@ -57,12 +58,10 @@ export async function checkUsageCommand(context: vscode.ExtensionContext): Promi
         vscode.window.showInformationMessage(l10n("No plan usage data available for this account."));
         return;
     }
-    const summary = formatUsageSummary(snapshot);
-    vscode.window.showInformationMessage(
-        summary || l10n("No plan usage data available for this account."),
-        { modal: true },
-    );
+    const usage = formatUsageSummary(snapshot);
+    const balance = formatBalanceSummary(snapshot);
+    const message = usage
+        ? l10nFormat("Plan usage: {0}  ·  Balance: {1}", usage, balance)
+        : l10nFormat("Balance: {0}", balance);
+    vscode.window.showInformationMessage(message);
 }
-
-// l10nFormat kept referenced for platform-specific extensions.
-void l10nFormat;

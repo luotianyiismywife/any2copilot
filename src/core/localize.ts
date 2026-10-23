@@ -146,6 +146,8 @@ const zhCN: Record<string, string> = {
 		"登录凭据已失效，请从浏览器重新复制（{0}）。",
 	"Failed to fetch plan usage. See the extension output channel for details.": "套餐用量查询失败，详见扩展的输出通道。",
 	"No plan usage data available for this account.": "该账号暂无套餐用量数据。",
+	"Plan usage: {0}  ·  Balance: {1}": "套餐用量：{0}  ·  余额：{1}",
+	"Balance: {0}": "余额：{0}",
 };
 
 /**

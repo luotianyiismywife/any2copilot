@@ -43,6 +43,10 @@
   - **`storeMatchesRaw` 补 `label` 比较**：`storeEqualsRaw` 改名 `storeMatchesRaw`，语义比较补上 `label` 字段（修复 label 变化时缓存语义比较误判）。
   - **`pickAccountCredential` 去掉 `?? store.keys[0]` 回退**：对齐 senseaudio，直接取 `activeIndex` 的 key。
   - **测试对齐**：`test-transient-retry.mjs` / `test-banned-rotation.mjs` / `test-rotation.mjs` 的 shim 提供 `DEFAULT_ERROR_RULES` fallback；测试内用 `matchErrorRule` 派生语义断言；删除 `REASON_TEXT` 断言。
+- **对齐 sense-audio-copilot 非平台特性**（2026-10-23 复核）：
+  - **`checkUsageCommand` 恢复余额显示**：成功弹窗恢复 `Plan usage: {usage} · Balance: {balance}` 组合（此前只显示窗口百分比，丢失余额）；新增 `Plan usage: {0} · Balance: {1}` / `Balance: {0}` 两个 l10n 键；删除多余的 `void l10nFormat;` 保留引用。
+  - **`repairJsonText` 恢复完整容错逻辑**：单引号改回成对替换（`'([^'\\]*)'` → `"$1"`，避免破坏字符串内 `it's`）；括号平衡改回栈式按序闭合；恢复「剥离末尾残缺片段」（`out.replace(/,\s*"[^"]*"?\s*:?\s*$/, "")`）——覆盖流截断（`finish_reason=length`）时 JSON 写到一半的场景。
+  - **清理 `test/README.md` 残留引用**：删除已移除的 `test-banned-detect.mjs` 运行命令（其覆盖已并入 `test-banned-rotation.mjs`）。
 
 ### 文档
 

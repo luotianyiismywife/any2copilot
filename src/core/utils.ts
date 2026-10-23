@@ -356,17 +356,15 @@ export function repairJsonText(text: string): string {
     out = out.replace(/[\u201c\u201d]/g, '"').replace(/[\u2018\u2019]/g, "'");
     // Trailing commas before } or ].
     out = out.replace(/,\s*([}\]])/g, "$1");
-    // Single-quoted strings → double-quoted (naive: only when no double quotes present).
-    if (!out.includes('"') && out.includes("'")) {
-        out = out.replace(/'/g, '"');
+    // Single-quoted keys/values → double quotes (only when no double quotes present in the segment).
+    if (!out.includes('"')) {
+        out = out.replace(/'([^'\\]*)'/g, '"$1"');
     }
-    // Complete unclosed brackets/quotes (stream truncation).
-    let depthBrace = 0;
-    let depthBracket = 0;
+    // Balance unclosed braces/brackets (stream truncation mid-JSON).
+    const stack: string[] = [];
     let inString = false;
     let escaped = false;
-    for (let i = 0; i < out.length; i++) {
-        const ch = out[i];
+    for (const ch of out) {
         if (escaped) {
             escaped = false;
             continue;
@@ -382,26 +380,20 @@ export function repairJsonText(text: string): string {
         if (inString) {
             continue;
         }
-        if (ch === "{") {
-            depthBrace++;
-        } else if (ch === "}") {
-            depthBrace--;
-        } else if (ch === "[") {
-            depthBracket++;
-        } else if (ch === "]") {
-            depthBracket--;
+        if (ch === "{" || ch === "[") {
+            stack.push(ch);
+        } else if (ch === "}" || ch === "]") {
+            stack.pop();
         }
     }
     if (inString) {
         out += '"';
     }
-    while (depthBracket > 0) {
-        out += "]";
-        depthBracket--;
-    }
-    while (depthBrace > 0) {
-        out += "}";
-        depthBrace--;
+    // Drop a dangling trailing fragment like `, "key":` or `, "key"` at the end.
+    out = out.replace(/,\s*"[^"]*"?\s*:?\s*$/, "");
+    out = out.replace(/,\s*$/, "");
+    while (stack.length > 0) {
+        out += stack.pop() === "{" ? "}" : "]";
     }
     return out;
 }

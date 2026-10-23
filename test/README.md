@@ -47,7 +47,6 @@ node test/test-rotation.mjs
 node test/test-vision-history.mjs
 node test/test-anthropic-tool-result-merge.mjs
 node test/test-batch-import.mjs
-node test/test-banned-detect.mjs
 node test/test-banned-rotation.mjs
 
 # 联网测试（需 API Key，从参数或环境变量读取）
