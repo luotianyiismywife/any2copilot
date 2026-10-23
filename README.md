@@ -30,7 +30,7 @@ stripping out everything platform-specific and keeping the reusable skeleton.
 | **Streaming + thinking** | SSE streaming, reasoning/thinking parts, XML ` thinking` block parsing |
 | **Tool calling** | VS Code `LanguageModelToolCallPart` support |
 | **Vision proxy (`ask_image`)** | Text-only models can ask a vision model about images, with cross-turn history persistence |
-| **Token counting** | `o200k_base` tiktoken, native + optional advanced status-bar indicator |
+| **Token counting** | `o200k_base` tiktoken, native Copilot token indicator |
 | **Plan usage & balance** | Status-bar plan-usage display (5h/weekly/monthly windows + balance), **supports both "balance-only" and "balance + usage windows" data shapes** |
 | **Git commit messages** | Conventional-commit generation from the SCM panel |
 | **i18n** | Simplified Chinese + English |

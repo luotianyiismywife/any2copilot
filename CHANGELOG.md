@@ -31,6 +31,18 @@
 - 修复 eslint 10 新规则报出的 5 处问题（`no-useless-assignment` × 2、`preserve-caught-error` × 3）。
 - 修复 2 个高危依赖漏洞（`brace-expansion` / `js-yaml`）。
 - 删除无断言的 `test-banned-detect.mjs`（其覆盖已并入 `test-banned-rotation.mjs`）。
+- **对齐 sense-audio-copilot `f90c240`（v1.7.0 之后）**：
+  - **sticky 模式重构**：sticky 改用持久化 `activeIndex`（而非内存游标 `rotationIndex`）钉住 key；「设为当前使用」在 single/sticky 模式显示（rotation 隐藏）。删除 `getRotationCursorIndex`。
+  - **状态栏重构**：删除高级 Token 指示器（`enableThirdPartyTokenIndicator`）及其累计计数器；`showUsageInStatusBar`/`showUsageInTooltip` 合并为单一 `showUsage`（关闭则隐藏状态栏）；主文本改为 5h 窗口已用百分比或余额；状态栏重命名为「剩余用量」（Remaining Usage）；常态化显示。
+  - **HTTP 层重试**：删除 `retry.statusCodes` 设置，HTTP 层重试仅限网关错误（502/504）与网络错误。
+  - **错误处理**：新增 `TransientRetryExhaustedError`（瞬态错误同 key 重试耗尽后的友好错误）；全部 key 不可用报错提示「重置失效状态」。
+
+### 文档
+
+- **重写 `docs/retry-and-key-rotation.md`**：全面对齐当前代码（`errorRules` 四元组 + 两层重试），清除 errorRules 重构前的过时设置（`apiKeyRotationStatusCodes` / `apiKeyRotationErrorPatterns` / `apiKeyBannedErrorPatterns` / `transientRetryStatusCodes`）与已删除函数（`getRotationStatusCodes()` 等）。
+- **更新 `docs/multi-api-key-design.md`**：sticky 模式改为持久化 `activeIndex`；`cookie` → `credential`；函数表对齐 `matchErrorRule` / `markApiKeyExhausted(action)` 等当前 API。
+- **重写 `PLATFORM_PORTING.md`**：新增移植路线图（9 步）、分组排查清单（模型列表/计费/错误语义/视觉工具）、手工验收清单、相关文档索引。
+- **新增 `.copilot/platform-quirks.md`**：平台特性探测与已知坑（模型列表/思考参数/SSE/工具调用/图片/错误语义/认证 7 类坑 + 探测方法 + 必做清单）。
 
 ## [1.0.0] - 2026-10-07
 

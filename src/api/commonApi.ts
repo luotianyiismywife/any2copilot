@@ -9,8 +9,9 @@ import {
     CancellationToken,
 } from "vscode";
 import { ProviderModelItem } from "../core/types";
-import { isImageMimeType, isToolResultPart, storeDataUriImages, parseToolCallArguments, splitToolCallArguments } from "../core/utils";
+import { isImageMimeType, isToolResultPart, storeDataUriImages, parseToolCallArguments, splitToolCallArguments, tryParseJSONObject } from "../core/utils";
 import { VersionManager } from "../core/versionManager";
+import { logger } from "../core/logger";
 import type { InterceptedToolCall, StoredImage } from "../vision/types";
 import { ASK_IMAGE_TOOL_NAME, ASK_WITH_MULTI_IMAGE_TOOL_NAME } from "../vision/types";
 import { consumeSseStream } from "./sse";
@@ -211,12 +212,18 @@ export abstract class CommonApi<TMessage, TRequestBody> {
         if (buf.name === ASK_IMAGE_TOOL_NAME || buf.name === ASK_WITH_MULTI_IMAGE_TOOL_NAME) {
             return;
         }
-        const parsed = parseToolCallArguments(buf.args);
-        if (!parsed) {
+        // Use strict JSON parsing so an empty/partial args string never triggers
+        // early emission. Emission is deferred to flushToolCallBuffers (which keeps
+        // the tolerant parseToolCallArguments for the finished, potentially messy,
+        // arguments). This prevents splitting a streamed tool call into an
+        // empty-args call + an unknown_tool call when the first chunk carries
+        // id/name but empty arguments and subsequent chunks carry only index.
+        const canParse = tryParseJSONObject(buf.args);
+        if (!canParse.ok) {
             return;
         }
         const id = buf.id ?? `call_${Math.random().toString(36).slice(2, 10)}`;
-        let parameters = parsed;
+        let parameters = canParse.value;
         parameters = this.adjustReadFileParameters(buf.name, parameters);
         progress.report(new LanguageModelToolCallPart(id, buf.name, parameters));
         this._toolCallBuffers.delete(key);
@@ -276,11 +283,18 @@ export abstract class CommonApi<TMessage, TRequestBody> {
                     continue;
                 }
                 if (throwOnInvalid) {
-                    console.error("[Copilot Provider] Invalid JSON for tool call", {
+                    // 宽容处理：工具调用参数在流结束时仍无法解析（截断/损坏）时，
+                    // 丢弃该 tool call 而不是让整个请求失败。记录日志便于排查。
+                    // 此前直接 throw 会让不规范模型的流式 tool_calls 参数
+                    // 导致整轮请求报 "Invalid JSON for tool call"。
+                    logger.error("api.tool-call.dropped", {
+                        modelId: this._modelId,
                         idx,
+                        name: buf.name,
                         snippet: (buf.args || "").slice(0, 200),
                     });
-                    throw new Error("Invalid JSON for tool call");
+                    this._toolCallBuffers.delete(idx);
+                    this._completedToolCallIndices.add(idx);
                 }
                 continue;
             }

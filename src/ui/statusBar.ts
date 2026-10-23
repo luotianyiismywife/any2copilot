@@ -22,8 +22,8 @@ const STATUS_BAR_HIDE_DELAY_MS = 60 * 1000; // 1 minute of inactivity
 let statusBarHideTimer: NodeJS.Timeout | null = null;
 
 // ── Plan usage polling state ──
-/** Credential provider, injected by `initStatusBar` (sourced from key-bound credentials). */
-let usageTokenProvider: (() => Promise<string | undefined>) | undefined;
+/** Account credential provider, injected by `initStatusBar` (credential lives in the key store). */
+let usageCredentialProvider: (() => Promise<string | undefined>) | undefined;
 /** Status bar item reference for background re-renders. */
 let usageStatusBarItem: vscode.StatusBarItem | undefined;
 /** Background refresh timer. */
@@ -52,16 +52,18 @@ function getUsageRefreshIntervalMs(): number {
  * text and tooltip are re-rendered so the next glance/hover shows fresh data.
  */
 async function refreshPlanUsage(): Promise<void> {
-    if (usageRefreshInFlight || !usageTokenProvider) {
+    if (usageRefreshInFlight || !usageCredentialProvider) {
         return;
     }
-    const token = await usageTokenProvider();
-    if (!token) {
-        logger.debug("planUsage.poll.skip", { reason: "no-credential" });
-        return;
-    }
+    // 先置 in-flight 标志再 await（否则两个并发调用都能通过上面的检查，
+    // 各自 await 后都置标志并重复发起请求）。
     usageRefreshInFlight = true;
     try {
+        const token = await usageCredentialProvider();
+        if (!token) {
+            logger.debug("planUsage.poll.skip", { reason: "no-credential" });
+            return;
+        }
         const snapshot = await getPlanUsageCached(token);
         if (snapshot && usageStatusBarItem) {
             updateStatusBarUsageText(usageStatusBarItem);
@@ -102,16 +104,18 @@ function startUsagePolling(): void {
  * by clicking the status bar item) and re-render once fresh data arrives.
  */
 export async function refreshPlanUsageNow(): Promise<PlanUsageSnapshot | null> {
-    const token = await usageTokenProvider?.();
-    if (!token) {
-        return null;
-    }
-    // 并发保护：后台刷新在途时不重复发起，直接返回当前缓存快照。
+    // 并发保护：后台刷新在途时不重复发起（避免穿透 in-flight 标志形成并发请求），
+    // 直接返回当前缓存快照。
     if (usageRefreshInFlight) {
         return getPlanUsageSnapshot();
     }
+    // 先置 in-flight 标志再 await（否则两个并发调用都能通过上面的检查）。
     usageRefreshInFlight = true;
     try {
+        const token = await usageCredentialProvider?.();
+        if (!token) {
+            return null;
+        }
         const snapshot = await getPlanUsageCached(token, true);
         if (usageStatusBarItem) {
             updateStatusBarUsageText(usageStatusBarItem);
@@ -127,8 +131,8 @@ export async function refreshPlanUsageNow(): Promise<PlanUsageSnapshot | null> {
  * Render the status bar main text.
  *
  * Layout:
- * - plan quota available → `$(pulse) 5H 65%` (5-hour rate-limit window)
- * - plan quota exhausted → `$(pulse) 余额 ¥12.34` (billing from balance)
+ * - 套餐额度内（billingMode=plan）→ `$(pulse) 65%`（5 小时窗口已用百分比）
+ * - 用余额（billingMode=extra/free，月度额度耗尽）→ `$(pulse) ¥12.34`（现金+代金券合计）
  * - no data yet → `$(pulse) --`
  *
  * 区分依据：`isPlanExhausted`（只看月度额度窗口）——月度额度耗尽即进入
@@ -141,15 +145,17 @@ function updateStatusBarUsageText(statusBarItem: vscode.StatusBarItem): void {
         return;
     }
     if (isPlanExhausted(snapshot)) {
-        statusBarItem.text = `$(pulse) ${l10n("Balance")} ${formatBalanceSummary(snapshot)}`;
+        // 用余额：月度套餐额度耗尽，超出部分按量计费（代金券→现金）
+        statusBarItem.text = `$(pulse) ${formatBalanceSummary(snapshot)}`;
         return;
     }
+    // 套餐额度内：显示 5 小时窗口已用百分比
     const primary = getPrimaryWindow(snapshot);
     if (!primary) {
         statusBarItem.text = `$(pulse) --`;
         return;
     }
-    statusBarItem.text = `$(pulse) ${l10n("5H")} ${getWindowPercent(primary)}%`;
+    statusBarItem.text = `$(pulse) ${getWindowPercent(primary)}%`;
 }
 
 /**
@@ -204,7 +210,7 @@ export function initStatusBar(
     context.subscriptions.push(tokenCountStatusBarItem);
 
     // Plan usage polling for the status bar text and tooltip section
-    usageTokenProvider = getCredential;
+    usageCredentialProvider = getCredential;
     usageStatusBarItem = tokenCountStatusBarItem;
     if (getCredential) {
         startUsagePolling();
@@ -231,8 +237,10 @@ export function initStatusBar(
         })
     );
 
-    // Do NOT show on startup — only show while one of this extension's models is actually in use.
-    tokenCountStatusBarItem.hide();
+    // 常态化显示（2026-10-10 改版）：不再静默隐藏，启动即显示并保持常显。
+    if (isStatusBarEnabled()) {
+        tokenCountStatusBarItem.show();
+    }
     return tokenCountStatusBarItem;
 }
 
@@ -265,18 +273,15 @@ export function showTokenStatusBar(statusBarItem: vscode.StatusBarItem): void {
 
 /**
  * Schedule hiding the status bar after a period of inactivity.
- * Called when a chat request finishes; the bar stays visible while the user
- * keeps using this provider's models and auto-hides once they stop (e.g. switched
- * to another model provider).
+ * 2026-10-10 改版：状态栏常态化显示，不再自动隐藏——本函数保留为空操作
+ * 以兼容既有调用点（provider.ts 的 finally），后续可移除。
  */
-export function scheduleStatusBarHide(statusBarItem: vscode.StatusBarItem, delayMs: number = STATUS_BAR_HIDE_DELAY_MS): void {
+export function scheduleStatusBarHide(statusBarItem: vscode.StatusBarItem, _delayMs: number = STATUS_BAR_HIDE_DELAY_MS): void {
     if (statusBarHideTimer) {
         clearTimeout(statusBarHideTimer);
-    }
-    statusBarHideTimer = setTimeout(() => {
         statusBarHideTimer = null;
-        statusBarItem.hide();
-    }, delayMs);
+    }
+    // No-op: the status bar is now always visible (常态化显示).
 }
 
 /**
@@ -312,6 +317,9 @@ export async function updateContextStatusBar(
 /**
  * Update the status bar tooltip with the plan usage section
  * (if enabled and data is cached).
+ *
+ * 2026-10-10 改版：累计 Token 部分（↑/↓ 箭头行）已移除——VS Code 原生
+ * 会话 Token 指示器已覆盖该信息，tooltip 仅保留套餐用量 + 余额。
  */
 function updateStatusBarTooltip(statusBarItem: vscode.StatusBarItem): void {
     const lines: string[] = [];

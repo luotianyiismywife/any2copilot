@@ -10,6 +10,7 @@ const zhCN: Record<string, string> = {
 	"API key not found": "未找到 API 密钥",
 	"Invalid base URL configuration.": "无效的 Base URL 配置。",
 
+	// statusBar cache tooltip
 	"No changes found in any workspace repositories.": "在任何工作区仓库中均未发现更改。",
 	"Git extension not found": "未找到 Git 扩展",
 	"No Git repositories available": "没有可用的 Git 仓库",
@@ -141,7 +142,6 @@ const zhCN: Record<string, string> = {
 	"Cloud sync is already in progress": "云同步正在进行中，请稍后再试",
 
 	// statusBar.ts / checkUsageCommand.ts - 套餐用量与余额
-	"5H": "5H",
 	"Balance": "余额",
 	"5h window resets in {0}": "五小时窗口将在 {0} 后重置",
 	"Querying plan usage...": "正在查询套餐用量...",

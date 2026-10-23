@@ -50,7 +50,7 @@
 | **上下文窗口声明** | `maxInputTokens` 按真实上下文窗口的**可配置比例**声明（默认 `1.0`，可通过 `<prefix>.maxInputTokensRatio` 调整，范围 0.1–1.0，**建议 0.8**）。VS Code agent 模式的自动压缩在比例 0.8 时于真实上下文的约 **72%** 处触发。`context_length` / `max_completion_tokens` 保持真实值不变（用于 API 请求体） |
 | **Token 计数** | 使用 `o200k_base` tiktoken 分词器精确统计 token 用量 |
 | **原生 Token 指示器** | 始终启用，向 Copilot Chat 原生 Token 指示器报告 token 用量。通过发送 MIME 类型为 `usage` 的 `LanguageModelDataPart` 实现。依赖 VS Code/Copilot Chat 1.116+ |
-| **套餐用量与余额显示** | 状态栏主文本显示**套餐用量**：额度内显示 `$(pulse) 5H 65%`（5 小时限流窗口），额度耗尽显示 `$(pulse) 余额 ¥358.78`；悬停提示展示 5h/周/月三窗口 + 5h 重置倒计时 + 余额 + 计费模式说明。**可见性由单一设置 `<prefix>.showUsage`（默认开启）控制**——关闭即隐藏整个状态栏（`isStatusBarEnabled()` = `showUsage`）。状态栏**仅在用户实际使用本插件提供的模型时显示**：启动时隐藏，发起请求时显示，停止使用（空闲 60 秒）后自动隐藏。**两套计费规则严格区分**：① **周期额度**（5h/周）是**限流窗口**，耗尽后等下一周期自动恢复、**不消耗余额**；② **套餐积分**（月度）才是**订阅额度**，耗尽后走超额策略——`enableExtraUsage=true` 则按量计费，否则**降级 Free 版**。三态 `billingMode`：`plan`/`extra`/`free`。数据源为账号信息端点，TTL 缓存 + **失败保留旧快照**（静默降级）。后台轮询（`<prefix>.usageRefreshInterval` 默认 5 分钟）+ 点击状态栏（`<prefix>.checkUsage` 命令，命令面板隐藏）强制刷新。**⚠️ 单位陷阱**：代金券积分 `1 元 = 1,000,000 积分`（`POINTS_PER_CNY`），与套餐积分**不是同一单位**。实现见 `src/balance/planUsage.ts`，设计/移植指南见 `docs/plan-usage-design.md`。**同时支持「仅余额」与「余额 + 用量窗口」两种数据格式**（`usageInfos` 为空 → 只显示余额行） |
+| **套餐用量与余额显示** | 状态栏主文本显示**套餐用量**：额度内显示 `$(pulse) 65%`（5 小时限流窗口已用百分比），额度耗尽显示 `$(pulse) ¥358.78`（余额）；悬停提示展示 5h/周/月三窗口 + 5h 重置倒计时 + 余额 + 计费模式说明。**状态栏常态化显示**（启动即显示，不自动隐藏），由 `<prefix>.showUsage` 设置控制（关闭则整个状态栏隐藏）。**两套计费规则严格区分**：① **周期额度**（5h/周）是**限流窗口**，耗尽后等下一周期自动恢复、**不消耗余额**；② **套餐积分**（月度）才是**订阅额度**，耗尽后走超额策略——`enableExtraUsage=true` 则按量计费，否则**降级 Free 版**。三态 `billingMode`：`plan`/`extra`/`free`。数据源为账号信息端点，TTL 缓存 + **失败保留旧快照**（静默降级）。后台轮询（`<prefix>.usageRefreshInterval` 默认 5 分钟）+ 点击状态栏（`<prefix>.checkUsage` 命令，命令面板隐藏）强制刷新。**⚠️ 单位陷阱**：代金券积分 `1 元 = 1,000,000 积分`（`POINTS_PER_CNY`），与套餐积分**不是同一单位**。实现见 `src/balance/planUsage.ts`，设计/移植指南见 `docs/plan-usage-design.md`。**同时支持「仅余额」与「余额 + 用量窗口」两种数据格式**（`usageInfos` 为空 → 只显示余额行） |
 | **Git 提交消息生成** | 一键生成 Conventional Commit 格式的 Git 提交消息，支持 `auto` 语言模式自动从历史提交检测语言 |
 | **多仓库支持** | 支持多根工作区 (multi-root) 中多个 Git 仓库的提交消息生成 |
 | **模型预设** | 支持通过 `<prefix>.modelPreset` 设置切换 temperature/top_p 预设（🎯 Precise/⚖️ Balanced/🔥 Creative），也支持手动自定义输入 |
@@ -187,7 +187,7 @@ provideLanguageModelChatResponse(model, messages, options, progress, token)
   │
   ├── 9c. **多 Key 轮换循环**（runKeyRotationLoop，外层 while(true)）:
   │       ├── pickNextApiKey(secrets, apiKeyMode)
-  │       │   ├── sticky → 从 activeIndex 环形扫描第一个可用 key，命中后钉住（更新并持久化 activeIndex）
+│       │   ├── sticky → 从当前钉住的 key（activeIndex）环形扫描第一个可用 key，命中后钉住（更新 activeIndex 并持久化）
   │       │   ├── rotation → 环形扫描第一个可用 key，游标前移
   │       │   ├── single → active key；不可用且 fallback=switch 且本轮命中 rotatePersist → 降级 rotation
   │       │   └── 全部不可用 → 报错列出脱敏 key+原因
@@ -257,10 +257,20 @@ provideLanguageModelChatResponse(model, messages, options, progress, token)
   1. _toolCallBuffers Map<index, {id, name, args}>
   2. stream 分片拼接 args
   3. tryEmitBufferedToolCall() → 参数可解析 JSON 时立即发射
-  4. flushToolCallBuffers() → finish_reason 时强制发射剩余
+  4. flushToolCallBuffers() → finish_reason 时强制发射剩余；
+     仍无法解析时先尝试 splitToolCallArguments 拆分（并行调用合并场景），
+     拆分也失败则**丢弃该 tool call 并记录日志**（不再抛错）
   5. adjustReadFileParameters() → 自动扩增 read_file 行数
   ask_image 拦截: 不在 tryEmit/flush 中发出，改为设置 interceptedToolCall
 ```
+
+> ⚠️ **Invalid JSON 整轮失败坑（2026-10-22 修复）**：`flushToolCallBuffers` 在
+> `throwOnInvalid=true`（OpenAI 流结束）时，若某 tool call 参数既无法被
+> `parseToolCallArguments` 解析、也无法被 `splitToolCallArguments` 拆分（单个截断/损坏
+> 的 JSON 对象），此前直接 `throw new Error("Invalid JSON for tool call")` 导致**整轮请求
+> 失败**。不规范模型的流式 tool_calls 参数易触发。现改为宽容处理：记录日志 + 丢弃该
+> tool call（删除 buffer + 标 completed），请求正常返回其余内容。`responsesApi.ts` 的
+> `flushResponsesToolCalls` 同步修复（AMD 项目 `7f7e1df` 同款补丁）。
 
 ### 2.6 图片代理（ask_image Tool）流程
 
@@ -447,7 +457,8 @@ test/                                     # 测试脚本（运行前需 npm run 
 ├── api-tests.mjs                         # 三协议联网测试（需真实 API Key）
 └── README.md                             # 测试说明
 .copilot/
-├── api-reference.md                      # 平台 API 实测参考（移植时按此方法探测新平台）
+├── api-reference.md                      # 平台 API 实测参考（SenseAudio 样本，移植时按此方法探测新平台）
+├── platform-quirks.md                    # ★ 平台特性探测与已知坑（移植必读：模型列表/思考参数/SSE/工具调用/图片/错误语义/认证）
 └── build-log.md                          # 编译日志（自动生成，gitignore）
 ```
 
@@ -541,12 +552,15 @@ test/                                     # 测试脚本（运行前需 npm run 
 
 ### 4.3 平台行为差异排查清单
 
-移植后按此清单逐项实测（参考 `.copilot/api-reference.md` 的实测方法）：
+移植后按此清单逐项实测（**详细探测方法与已知坑见 [`.copilot/platform-quirks.md`](../.copilot/platform-quirks.md)**，实测样本见 `.copilot/api-reference.md`）：
 
 - [ ] `GET /v1/models` 返回结构：是否有 `mode`/`protocols`/`supports_*` 字段？非 llm 模型是否需要过滤？
 - [ ] 三协议支持情况：`/v1/chat/completions`、`/v1/messages`、`/v1/responses`——不支持的协议在 `resolveApiMode` 里锁死为 `openai`
 - [ ] `thinking` / `reasoning_effort` 参数的合法取值（各平台差异极大，400 就是对拍点）
 - [ ] 流式 SSE 事件格式是否标准（`data: {...}` / `[DONE]`）
+- [ ] 工具调用流式分片格式（首分片是否空参数、并行调用 `index` 是否稳定）
+- [ ] 命名 `tool_choice` 是否可用（大概率 500）
+- [ ] 图片输入支持 / 非视觉模型发图片的返回
 - [ ] 余额/套餐端点：响应结构、积分单位（**1 元 = 多少积分**，各平台不同，别混用）
 - [ ] 限流特征：429/402/401 的语义与返回体（`src/keys/config.ts` 的 `errorRules` 四元组）
 - [ ] 是否支持 prompt cache（影响 README 的额度说明）
@@ -645,12 +659,12 @@ test/                                     # 测试脚本（运行前需 npm run 
 
 ### 5.6 `src/api/` 模块
 
-- `commonApi.ts`：`CommonApi<TMessage,TRequestBody>` 抽象基类（`convertMessages` / `prepareRequestBody` / `processStreamingResponse` / `tryEmitBufferedToolCall` / `flushToolCallBuffers` / `collectLocalImages` / `applyTemperature` / `mergeExtraParams` / `runSseStream` / `prepareHeaders`）；工具调用按 `key`（id / index / auto）分桶，`_indexToId` 把仅带 index 的 args 碎片解析回同 tool_call 的 id 桶
+- `commonApi.ts`：`CommonApi<TMessage,TRequestBody>` 抽象基类（`convertMessages` / `prepareRequestBody` / `processStreamingResponse` / `tryEmitBufferedToolCall` / `flushToolCallBuffers` / `collectLocalImages` / `applyTemperature` / `mergeExtraParams` / `runSseStream` / `prepareHeaders`）；工具调用按 `key`（id / index / auto）分桶，`_indexToId` 把仅带 index 的 args 碎片解析回同 tool_call 的 id 桶；`tryEmitBufferedToolCall` 用**严格 JSON 解析**（`tryParseJSONObject`）判定可发射，空/部分参数串不提前发射（避免流式 tool_calls 首分片带 id/name 但空 args、后续分片仅带 index 时被拆成空参数调用 + unknown_tool 两个调用），发射延迟到 `flushToolCallBuffers`（保留容错 `parseToolCallArguments`）；`flushToolCallBuffers` 在 `throwOnInvalid=true` 时对既无法解析也无法拆分的 tool call **丢弃 + 记日志**（不再抛错，避免整轮失败）
 - `sse.ts`：`iterateSseEvents` / `consumeSseStream`（无 `[DONE]` 哨兵时也触发 `onDone` 刷新缓冲）
 - `httpClient.ts`：`postJson`
 - `openai/openaiApi.ts`：`OpenaiApi`（`convertMessages` / `prepareRequestBody` / `processStreamingResponse` / `createMessage`）
 - `anthropic/anthropicApi.ts`：`AnthropicApi`（同上 + 连续工具结果合并 + 图片索引按 part 顺序内联分配 + thinking 块置于 assistant 消息首位）
-- `responses/responsesApi.ts`：`ResponsesApi`（同上 + 结构化工具回填）
+- `responses/responsesApi.ts`：`ResponsesApi`（同上 + 结构化工具回填 + `flushResponsesToolCalls` 对不可解析 tool call 丢弃 + 记日志）
 
 ### 5.7 `src/models/` 模块
 

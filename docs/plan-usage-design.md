@@ -7,7 +7,7 @@
 
 ## 1. 为什么需要这个模块
 
-上游 opencode-go-copilot 的状态栏主文本显示的是**套餐用量**（`Go 5H 65%`）而不是 Token 计数——因为对订阅制供应商来说，「这个 5 小时窗口还能用多少」比「这次请求花了多少 token」更有决策价值。Token 计数退居悬停提示。
+上游 opencode-go-copilot 的状态栏主文本显示的是**套餐用量**（`Go 5H 65%`）而不是 Token 计数——因为对订阅制供应商来说，「这个 5 小时窗口还能用多少」比「这次请求花了多少 token」更有决策价值。Token 计数由 VS Code 原生会话 Token 指示器覆盖，扩展状态栏不再重复显示。
 
 本模块的核心工作是**把「限流窗口」与「订阅额度」两套规则正确区分并归一化**，同时**兼容两种数据格式**：
 
@@ -165,9 +165,10 @@ initStatusBar(context, getLoginToken)
 
 | 状态 | 文本 |
 |------|------|
-| 有数据，额度内 | `$(pulse) 5H 65%` |
+| 有数据，额度内 | `$(pulse) 65%`（5 小时窗口已用百分比） |
 | 有数据，额度耗尽 | `$(pulse) 余额 ¥358.78` |
 | 无数据 | `$(pulse) --` |
+| `showUsage=false` | 状态栏隐藏 |
 
 ### 5.2 悬停提示
 
@@ -187,21 +188,23 @@ Month——100% (10,012 / 10,000 积分)
 
 | 配置 | 默认 | 说明 |
 |------|------|------|
-| `<prefix>.showUsage` | `true` | 显示套餐用量（主文本 + 悬停提示）；关闭则隐藏整个状态栏 |
+| `<prefix>.showUsage` | `true` | 状态栏显示套餐用量（主文本 + 悬停提示区块；关闭则隐藏状态栏） |
 | `<prefix>.usageRefreshInterval` | `5` | 后台刷新间隔（分钟，1-60） |
 | `<prefix>.minBalanceCny` | `0` | 余额阈值（合计可用 ≤ 该值标记 error 图标） |
 | `<prefix>.balanceCheckIntervalSec` | `60` | 账号信息缓存 TTL（秒） |
 
-### 5.4 状态栏可见性
+### 5.4 ⚠️ 状态栏可见性
 
-状态栏承载套餐用量显示（主文本 + 悬停提示区块），由单一设置
-`<prefix>.showUsage` 控制。可见性由 `isStatusBarEnabled()` 决定：
+状态栏承载套餐用量显示（主文本 + 悬停提示区块）。可见性由
+`isStatusBarEnabled()` 决定：
 
 ```ts
-isUsageEnabled()   // 读 <prefix>.showUsage
+isUsageEnabled()   // = <prefix>.showUsage
 ```
 
-关闭 `showUsage` 即隐藏整个状态栏。
+状态栏启动即显示并保持常显（2026-10-10 改版，不再空闲隐藏）。
+
+> 2026-10-15：旧版 `<prefix>.enableThirdPartyTokenIndicator`（高级 Token 计数器）已删除；`showUsageInStatusBar` / `showUsageInTooltip` 两个开关已合并为单一 `<prefix>.showUsage`。
 
 ---
 
