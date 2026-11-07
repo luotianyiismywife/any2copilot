@@ -75,8 +75,7 @@ npm run audit     # 7 项审计
 
 | 内容 | 位置 | 说明 |
 |------|------|------|
-| **内置模型清单** | `src/models/models.ts` → `BUILT_IN_MODELS` | 替换为你的模型（`baseId` / `displayName` / `vision` / `thinkingMode` / `contextLength` / `maxTokens`） |
-| **视觉能力兜底** | `src/models/visionModels.ts` → `HARDCODED_VISION` | 填入你平台自研模型的视觉能力（可留空） |
+| **内置模型清单** | `src/models/models.ts` → `BUILT_IN_MODELS` | 替换为你的模型（`baseId` / `displayName` / `vision` / `thinkingMode` / `contextLength` / `maxTokens`）。**视觉能力也在这里声明**（`vision` 字段）——`/v1/models` 失败时的离线兜底就靠它 |
 | **账号信息字段映射** | `src/balance/accountInfo.ts` → `queryAccountInfo()` | 按你平台的响应结构改写解析 |
 | **积分换算比例** | `src/balance/accountInfo.ts` → `POINTS_PER_CNY` | 实测校正（各平台不同） |
 | **错误分类规则** | `package.json` → `errorRules` 的 `default` | 四元组（code + message + statusCode + action）。`code` 默认值是平台专属示例，按你平台错误响应体的 `error.code` 替换；`statusCode` 兜底为通用 HTTP 语义，通常无需改动（见 [`retry-and-key-rotation.md`](retry-and-key-rotation.md) §3.1） |

@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { abortCommitGeneration, generateCommitMsg } from "../gitCommit/commitMessageGenerator";
 import { pushToCloud, pullFromCloud } from "../cloud/cloudSync";
 import { showApiKeyManager } from "./apiKeyManagerUi";
+import { selectVisionProxyModel } from "./visionProxyCommand";
 import { checkUsageCommand } from "./checkUsageCommand";
 import type { ChatModelProvider } from "../provider/provider";
 
@@ -38,6 +39,14 @@ export function registerCommands(
     context.subscriptions.push(
         vscode.commands.registerCommand("any2copilot.openSettings", () => {
             vscode.commands.executeCommand("workbench.action.openSettings", `@ext:${context.extension.id}`);
+        })
+    );
+
+    // Vision proxy model picker: loads the live /v1/models list, resolves vision
+    // capability via models.dev, and writes any2copilot.visionProxyModel.
+    context.subscriptions.push(
+        vscode.commands.registerCommand("any2copilot.selectVisionProxyModel", async () => {
+            await selectVisionProxyModel(context.secrets);
         })
     );
 

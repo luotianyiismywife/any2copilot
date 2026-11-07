@@ -1,5 +1,5 @@
 /**
- * Vision capability resolution for platform models.
+ * Vision capability resolution for models returned by `/v1/models`.
  *
  * Some platforms' `/v1/models` endpoint does NOT return any capability flag
  * (e.g. only `id / display_name / mode / protocols / desc / created / owned_by`).
@@ -8,60 +8,52 @@
  * model is treated as text-only.
  *
  * Resolution order (first hit wins):
- *   1. `/v1/models` `supports_vision` — used if the platform returns it.
- *   2. models.dev — `attachment === true` or `modalities.input` contains
- *      "image".
- *   3. Hardcoded fallback — for the platform's own models, which may be absent
- *      from both catalogs. Defaults to `false` (text-only) so an unknown model
- *      goes through the ask_image proxy instead of failing on a real image
- *      request.
+ *   1. `/v1/models` — `supports_vision` / `architecture.input_modalities` /
+ *      `providers[].vision` (tri-state: `undefined` means the platform said
+ *      nothing).
+ *   2. models.dev — `modalities.input` contains "image" (precise signal) or
+ *      `attachment === true` (coarse: "accepts file uploads", possibly PDF-only).
+ *   3. `false` — unknown model: treat as text-only so it goes through the
+ *      ask_image proxy instead of failing on a real image request.
+ *
+ * The built-in catalog is deliberately NOT consulted here: it is an offline
+ * fallback for when `/v1/models` fails, not an overlay on top of live platform
+ * data (see `registry.ts`). Per-model vision declarations belong in
+ * `models.ts` `BUILT_IN_MODELS` (⚠️ 移植对接点).
  */
 import type { ApiModelMetadata } from "./apiModelList";
 import type { ModelsDevEntry } from "./modelsDev";
 
 /**
- * Hardcoded vision capability for models absent from models.dev / OpenRouter.
- *
- * ⚠️ **移植对接点**：填入你平台自研模型的视觉能力（这些模型通常不在
- * models.dev / OpenRouter 目录里）。留空对象即可——未知模型默认按 `false`
- * （纯文本）处理，走 ask_image 代理，不会因真实图片请求失败。
- *
- * 示例：
- *   "example-model": false,
- *   "example-model-vision": true,
- */
-const HARDCODED_VISION: Record<string, boolean> = {
-    // 移植时填入你平台的模型 ID → 是否支持视觉
-};
-
-/**
  * Resolve whether a model accepts image input.
  *
- * @param modelId Model ID as returned by `/v1/models`.
  * @param apiMeta Cached `/v1/models` metadata for this model (may be undefined).
  * @param devEntry models.dev entry for this model (may be undefined).
  */
 export function resolveVisionCapability(
-    modelId: string,
     apiMeta: ApiModelMetadata | undefined,
     devEntry: ModelsDevEntry | undefined
 ): boolean {
-    // 1. Platform flag (not currently returned, but honoured if it appears).
+    // 1. Platform flag — authoritative when present.
     if (apiMeta?.supports_vision !== undefined) {
         return apiMeta.supports_vision;
     }
     // 2. models.dev catalog.
+    //    `modalities.input` is the PRECISE signal — prefer it whenever present.
+    //    `attachment` only means "accepts file uploads" (could be PDF-only), so
+    //    it is a coarse fallback used when the modalities list is missing.
     if (devEntry) {
-        if (devEntry.attachment === true) {
-            return true;
+        const inputs = devEntry.modalities?.input;
+        if (inputs && inputs.length > 0) {
+            return inputs.includes("image");
         }
-        if (devEntry.modalities?.input?.includes("image")) {
+        if (devEntry.attachment === true) {
             return true;
         }
         if (devEntry.attachment === false) {
             return false;
         }
     }
-    // 3. Hardcoded fallback (the platform's own models).
-    return HARDCODED_VISION[modelId] ?? false;
+    // 3. Unknown → text-only (routes through the ask_image proxy).
+    return false;
 }

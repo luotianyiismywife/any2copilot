@@ -68,6 +68,11 @@
 				"title": "%command.manageApiKeys%"
 			},
 			{
+				"command": "any2copilot.selectVisionProxyModel",
+				"category": "%commandCategory%",
+				"title": "%command.selectVisionProxyModel%"
+			},
+			{
 				"command": "any2copilot.syncPush",
 				"category": "%commandCategory%",
 				"title": "%command.syncPush%"
@@ -313,7 +318,7 @@
 				},
 				"any2copilot.visionProxyModel": {
 					"type": "string",
-					"default": "example-model",
+					"default": "",
 					"description": "%config.visionProxyModel.desc%"
 				},
 				"any2copilot.visionProxyThinking": {

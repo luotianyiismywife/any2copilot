@@ -10,6 +10,13 @@
 
 ### 新增
 
+- **归一化模型注册表（单一事实来源）**：新增 `src/models/registry.ts`——合并 `/v1/models` + models.dev 为统一 `ModelInfo`，内置清单降级为**纯离线兜底**（仅 API 获取失败时整份接管，不再是叠加层）；新增 `src/models/chatInfo.ts`（`ModelInfo` → VS Code 条目 / 请求体配置适配器）与 `src/models/index.ts`（barrel）。`provider/`、`commands/`、`gitCommit/` 统一从 `"../models"` 取模型信息，消除 `models.ts` / `provideModel.ts` 各写一份的思考档位枚举、上下文比例与输出上限兜底逻辑。
+- **视觉代理模型选择器**：重新引入 `selectVisionProxyModel` 命令（`src/commands/visionProxyCommand.ts`）——从 `/v1/models` 实时加载模型列表、经 models.dev 判定视觉能力后 QuickPick 选择，写入已定义的最具体设置作用域（workspace folder / workspace / global），避免手写模型 ID 与"写了 Global 被覆盖"。
+- **视觉模型自动选择**：`visionProxyModel` 留空（默认）时运行时自动挑选第一个非主模型的视觉模型（与选择器命令同源 `getVisionModelInfos()`）；配置过期/指向非视觉模型时自动回退到注册表挑选，设置项从"必填"变为"可选覆盖"。
+
+### 变更
+
+- **视觉能力判定修正**：models.dev 查找改为**大小写不敏感**（目录键全小写，平台 ID 常带大写——原实现永远命中不了，补充层形同虚设）并**删除模糊后缀匹配**（错误命中会把纯文本模型标成视觉模型，平台 400 硬拒；miss 只走 ask_image 代理仍能工作，代价不对称）；`modalities.input`（精确信号）优先于 `attachment`（仅表示"接受文件上传"，可能仅 PDF）。移除 `HARDCODED_VISION` 表——视觉能力统一在 `BUILT_IN_MODELS` 的 `vision` 字段声明。
 - **sticky 模式手动钉住 key**：`sticky` 模式改用持久化的 `activeIndex`（而非内存游标）钉住当前 key，并支持在「管理 API Keys」界面手动「设为当前使用」指定钉住的 key。「设为当前使用」在 `single`/`sticky` 模式显示，仅 `rotation` 模式隐藏。
 - **瞬态重试耗尽友好错误**：`retrySameKey` 规则（如 500 / 上游流中断）重试次数用尽时抛出 `TransientRetryExhaustedError`——友好文案 + 原始错误后缀，替代过于原始的 500/429 报错。
 - **云同步自动推送**：新增设置 `cloudSyncAutoPush`（默认关闭）——key 管理操作后去抖 2.5s 静默推送本地变更到云端 Gist；本地与云端一致时短路不写 Gist。新增纯函数模块 `src/cloud/syncPayload.ts`（`syncPayloadHasChanged`）供去重逻辑与离线测试共用。

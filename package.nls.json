@@ -43,7 +43,7 @@
 	"config.modelPreset.temperature.desc": "Temperature value (0.0 - 2.0).",
 	"config.modelPreset.top_p.desc": "top_p value (0.0 - 1.0).",
 
-	"config.visionProxyModel.desc": "Vision model used by the ask_image tool to answer questions about attached images when the selected model does not support vision. **Use the command `Select Vision Proxy Model` to pick from the current vision-capable models** — it loads the live model list from `/v1/models` and resolves vision capability via models.dev.",
+	"config.visionProxyModel.desc": "Vision model ID used by the ask_image tool to answer questions about attached images when the selected model does not support vision. **Leave empty to auto-select** (resolved from the live `/v1/models` list, with vision capability judged via models.dev). This setting is free text (VS Code settings cannot enumerate remote models dynamically) — use the command `Select Vision Proxy Model` to pick one and write it here.",
 	"config.visionProxyThinking.desc": "Enable thinking/reasoning in the vision proxy model when answering image queries.",
 	"config.apiMode.desc": "API protocol used for chat requests. The platform supports OpenAI-compatible, Anthropic, and Responses API formats. Default: auto (follows each model's default format; in auto mode, models reporting supports_responses=true use the Responses protocol only when enableResponsesApi is on, otherwise they fall back to OpenAI).",
 	"config.apiMode.enum.auto.desc": "Auto — use each model's default API format. Models that support the Responses API (supports_responses=true) use it only when the enableResponsesApi setting is enabled; otherwise they use the OpenAI-compatible format.",
@@ -65,6 +65,7 @@
 	"config.transientRetryTimes.desc": "How many times to automatically retry the whole key-rotation round when every key fails with a transient error (429 rate limit / 500 internal error / 503 server busy). Waits with exponential backoff (2s/4s/8s) between rounds and clears the transient cooldown before retrying. 0 = disable auto-retry.",
 
 	"command.manageApiKeys": "Manage API Keys",
+	"command.selectVisionProxyModel": "Select Vision Proxy Model",
 	"command.syncPush": "Push API Keys to Cloud (Gist)",
 	"command.syncPull": "Pull API Keys from Cloud (Gist)",
 	"command.checkUsage": "Check Plan Usage & Balance",

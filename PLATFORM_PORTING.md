@@ -77,12 +77,11 @@
 
 | 位置 | 内容 |
 |------|------|
-| `src/models/models.ts` → `BUILT_IN_MODELS` | 内置模型清单（示例数据） |
-| `src/models/visionModels.ts` → `HARDCODED_VISION` | 平台自研模型的视觉能力兜底（示例为空对象） |
+| `src/models/models.ts` → `BUILT_IN_MODELS` | 内置模型清单（示例数据；视觉能力经 `vision` 字段在此声明） |
 | `package.json` → `any2copilot.commitModel` 默认值 | 提交消息生成默认模型 |
-| `package.json` → `any2copilot.visionProxyModel` 默认值 | 视觉代理默认模型 |
-| `src/provider/visionRounds.ts` | 视觉代理默认模型（代码内兜底） |
 | `src/platform/platformConfig.ts` → `FALLBACK_TEST_MODEL_ID` | key 可用性检测兜底模型 |
+
+> 视觉代理模型 `any2copilot.visionProxyModel` 默认**留空 = 运行时自动选择**（从 `/v1/models` + models.dev 判定的视觉模型中挑第一个非主模型），无需移植时填写；推荐用 `any2copilot.selectVisionProxyModel` 命令选择。
 
 ---
 

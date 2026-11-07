@@ -39,14 +39,14 @@
 | **Chat 模型提供商** | 实现 `LanguageModelChatProvider` 接口，向 VS Code 注册为厂商（vendor 由 `package.json` 声明，见移植指南 §1.2） |
 | **多 API Key 轮询** | 支持多个 API Key（SecretStorage 加密存储 `<prefix>.apiKeys`），三种模式：`sticky`（默认，固定使用一个 key，仅失效时切下一个并钉住——前缀缓存命中率最高，切换后不自动切回）/ `rotation`（轮询使用、跳过不可用 key）/ `single`（仅用当前 key；`<prefix>.singleKeyFallback`（默认 `switch`）下**仅在当前 key 命中 `rotatePersist`（确定性失败：余额不足/无效 key/封号）时**自动切换到下一个可用 key 并经 `setActiveKeyByValue` 设为当前使用 + 右下角弹窗提示——`rotateCooldown`（429/503 瞬态）不切换、走 single 专属报错文案；`error` 下任何错误都直接报错不切换）。**被动检测**：**只配置 `<prefix>.errorRules` 一处**（四元组：code + message + statusCode + action，`src/keys/config.ts` 的 `getErrorRules`）。按数组顺序匹配，首个命中即生效：`code`（错误体 error.code 精确匹配，**主要匹配字段**）优先于 `statusCode`（HTTP 状态码兜底）；`message` 仅作可读性说明**不参与匹配**。`action` 与 key 状态一一对应：`retrySameKey` → 状态不变（不换 key，退避后重试同一个 key）、`rotateCooldown` → 冷却中（换 key，仅内存冷却，到期自动恢复）、`rotatePersist` → 不可用（换 key，持久化 available=false）。默认规则基于实测：封号（`code=billing`，400）→ 不可用；上游流中断（`code=upstream_stream_error`，400）→ 不换重试；余额不足（`code=INSUFFICIENT_BALANCE`，402）→ 不可用；限流（429/503）→ 冷却。**手动检测**：`<prefix>.manageApiKeys` 命令 QuickPick 管理（增删/设为当前/绑定平台登录凭据/重置失效/检测可用性——最小真实聊天请求 `say ok`，实测余额不足时 402 拦截不耗 token）。**UI 增强**：表单式批量导入（三元组 key/凭据/备注）、检测二级界面、编辑 API Key（三字段 value/凭据/label，冲突校验）、**轮询模式下隐藏"设为当前使用"**、批量导入时已存在 key 自动更新凭据不重复添加、**所有 key 管理界面均显示账号余额**（key 绑定的平台登录凭据经 `getAccountInfoCached` TTL 缓存查询账号信息端点，余额按**账号**粒度、所有 key 共享）。**全部 key 用尽时**：轮换循环跟踪每个 key 命中的 `ErrorRule`，报错列出脱敏 key + 原因（如 `sk_****abcd: 服务端繁忙`），并区分"瞬态失败请稍后重试"（`rotateCooldown`）与"确定性失败请检测"（`rotatePersist`）。**瞬态自动重试**：全部 key 均因 `rotateCooldown` 规则失败时，按 `<prefix>.transientRetryTimes`（默认 3）自动重试整轮——指数退避等待（2s/4s/8s，上限 8s）且**重试前清空瞬态冷却**，重试次数用尽后才报错。**平台侧错误不换 key**：`retrySameKey` 规则（如 500 Internal Server Error、`upstream_stream_error`）是平台/客户端侧问题而非 key 问题——**不标记 key、不换 key**，仅退避后重试同一个 key。旧版单 key `<prefix>.apiKey` 自动迁移。实现见 `src/keys/` |
 | **云同步（GitHub Gist）** | key/凭据/备注 三元组跨机器云同步：使用 VS Code 内置的 GitHub 登录（`vscode.authentication.getSession("github", ["gist"])`，无需 PAT）获取 token，将三元组存储到一个**私密 Gist**（`public: false`）。**手动推送**（`<prefix>.syncPush`）/ **手动拉取**（`<prefix>.syncPull`）/ **启动自动拉取**（`<prefix>.cloudSyncAutoPull`，默认开启，未登录时静默跳过）/ **自动推送**（`<prefix>.cloudSyncAutoPush`，默认关闭，key 管理操作后去抖 2.5s 静默推送，本地与云端一致时短路不写 Gist）。**合并策略（拉取）**：云端为源——按 key 值对齐，云端条目覆盖本地凭据/label；**可用性状态为本地数据不同步**。**时间戳口径统一**：push 记录服务端 `updated_at`（与 pull 侧一致），消除客户端时钟偏差导致的 push 后必然多拉一次。**跨窗口锁**：`globalState` 的 `<prefix>.cloudSyncLockUntil` 防止两窗口同时写 Gist。**向后兼容**：旧字段名 `cookie` 与 `credential` 等价（`readEntryCredential`）。实现集中在 `src/cloud/cloudSync.ts` + `src/cloud/syncPayload.ts` |
-| **多模型支持** | 内置模型定义（`src/models/models.ts` 的 `BUILT_IN_MODELS`，**移植时替换为你平台的模型**），统一通过推理强度选择器切换思考模式。支持自动模型发现：开启后从 API 获取模型列表，自动过滤不可用模型并发现新增模型 |
-| **自动模型发现** | 通过 `<prefix>.enableAutoModelDiscovery` 配置（默认开启）。启动时从 `/v1/models` 获取当前可用模型 ID 列表及能力标记，过滤内置模型列表（不可用模型自动隐藏）。新增模型元数据以 **`/v1/models` 完整元数据为主源**，models.dev 仅提供友好名称与回退规格；两源均未知输出上限时不发送 `max_completion_tokens`（交由服务端默认值）。`thinkingMode` 从 `supports_reasoning` 推断。API 不可用时静默回退到全量内置列表。内存缓存（5 分钟 TTL）。**按 API 模式过滤**：`anthropic` 仅显示 `supports_anthropic=true` 的模型，`responses` 仅显示 `supports_responses=true` 的模型。**动态刷新**：通过 `onDidChangeLanguageModelChatInformation` 事件（VS Code 1.125+），切换 `apiMode` / `enableAutoModelDiscovery` 设置时自动刷新选择器，**无需 reload 窗口** |
+| **多模型支持** | 内置模型定义（`src/models/models.ts` 的 `BUILT_IN_MODELS`，**移植时替换为你平台的模型**，仅作 `/v1/models` 失败时的离线兜底），统一通过推理强度选择器切换思考模式。支持自动模型发现：开启后从 API 获取模型列表，自动过滤不可用模型并发现新增模型 |
+| **自动模型发现** | 通过 `<prefix>.enableAutoModelDiscovery` 配置（默认开启）。**归一化模型注册表**（`src/models/registry.ts`，单一事实来源）合并 `/v1/models` + models.dev 为统一 `ModelInfo`：内置清单**不是叠加层**，仅在 API 获取失败时整份接管。新增模型元数据以 **`/v1/models` 完整元数据为主源**，models.dev 仅提供友好名称与回退规格（大小写不敏感查找）；两源均未知输出上限时不发送 `max_completion_tokens`（交由服务端默认值）。`thinkingMode` 从 `supports_reasoning` 推断。API 不可用时静默回退到全量内置列表。内存缓存（5 分钟 TTL）。**按 API 模式过滤**：`anthropic` 仅显示 `supports_anthropic=true` 的模型，`responses` 仅显示 `supports_responses=true` 的模型。**动态刷新**：通过 `onDidChangeLanguageModelChatInformation` 事件（VS Code 1.125+），切换 `apiMode` / `enableAutoModelDiscovery` 设置时自动刷新选择器，**无需 reload 窗口** |
 | **启动模型同步** | 通过 `<prefix>.syncModelsOnStartup` 配置（默认开启）。每次 VS Code 打开时自动检查 API 是否有新模型，**每日最多同步一次**（`globalState` 记录上次同步日期）。同步结果以**一行日志**输出到输出通道，**不写任何文件** |
 | **三协议 API 模式** | 同时支持 **OpenAI 兼容格式** (`/chat/completions`)、**Anthropic 格式** (`/v1/messages`) 和 **Responses API 格式** (`/v1/responses`)。可通过设置 `<prefix>.apiMode`（默认 `auto`）手动切换。启动时自动读取 `/v1/models` 的 `supports_responses` / `supports_anthropic` 字段并**缓存动态标记**（不硬编码模型 ID）。**auto 模式优先级**：`enableResponsesApi`（默认关闭）→ `enableAnthropicApi`（默认关闭）→ 兜底 OpenAI |
 | **流式推理** | 支持 SSE (Server-Sent Events) 流式响应，实时输出文本和工具调用 |
 | **Thinking/推理** | 支持模型的推理过程展示 ("thinking" 状态)，包括 XML think 块解析 |
 | **工具调用 (Tool Calling)** | 支持 VS Code 的 LanguageModelToolCallPart 机制 |
-| **图片代理 (Tool-based)** | 为不支持视觉的模型注入 `ask_image` 工具，模型可自主选择调用视觉模型回答关于图片的具体问题，支持多轮 API 请求完成"调用工具→提问→获取答案→继续回答"的完整流程。视觉模型 ID、查询提示词和思考模式均可通过设置配置。**跨轮视觉历史持久化**：每轮视觉代理完成后输出私有 MIME（`application/vnd.copilot-provider.vision-tool-history+json`）的 `LanguageModelDataPart`，VS Code 自动带入下一轮对话；下次请求 `convertMessages` 识别该 DataPart 并重建标准 tool call + tool result 消息。**递归守卫**：`isVisionCapableModelId` 检测 `visionProxyModel` 指向非视觉模型（或与主模型相同）时提示并返回，避免视觉请求再次触发 ask_image 代理 → 递归。**轮内失败不换 key**：视觉代理轮次请求失败包装为 `VisionRoundError`，轮换循环识别后直接抛出（主请求已成功，换 key 重跑会重复输出主回答）。`visionMaxRounds` 代码夹取 [1,20] |
+| **图片代理 (Tool-based)** | 为不支持视觉的模型注入 `ask_image` 工具，模型可自主选择调用视觉模型回答关于图片的具体问题，支持多轮 API 请求完成"调用工具→提问→获取答案→继续回答"的完整流程。视觉模型 ID、查询提示词和思考模式均可通过设置配置。**视觉模型自动选择**：`visionProxyModel` 留空（默认）时运行时自动挑选第一个非主模型的视觉模型（与 `selectVisionProxyModel` 命令同源：`getVisionModelInfos()`）；配置过期/错误时同样自动回退。**跨轮视觉历史持久化**：每轮视觉代理完成后输出私有 MIME（`application/vnd.copilot-provider.vision-tool-history+json`）的 `LanguageModelDataPart`，VS Code 自动带入下一轮对话；下次请求 `convertMessages` 识别该 DataPart 并重建标准 tool call + tool result 消息。**递归守卫**：配置的 `visionProxyModel` 指向非视觉模型（或与主模型相同）时不直接使用，自动回退到注册表挑选；完全无可用视觉模型时提示并返回，避免视觉请求再次触发 ask_image 代理 → 递归。**轮内失败不换 key**：视觉代理轮次请求失败包装为 `VisionRoundError`，轮换循环识别后直接抛出（主请求已成功，换 key 重跑会重复输出主回答）。`visionMaxRounds` 代码夹取 [1,20] |
 | **上下文窗口声明** | `maxInputTokens` 按真实上下文窗口的**可配置比例**声明（默认 `1.0`，可通过 `<prefix>.maxInputTokensRatio` 调整，范围 0.1–1.0，**建议 0.8**）。VS Code agent 模式的自动压缩在比例 0.8 时于真实上下文的约 **72%** 处触发。`context_length` / `max_completion_tokens` 保持真实值不变（用于 API 请求体） |
 | **Token 计数** | 使用 `o200k_base` tiktoken 分词器精确统计 token 用量 |
 | **原生 Token 指示器** | 始终启用，向 Copilot Chat 原生 Token 指示器报告 token 用量。通过发送 MIME 类型为 `usage` 的 `LanguageModelDataPart` 实现。依赖 VS Code/Copilot Chat 1.116+ |
@@ -59,7 +59,7 @@
 | **请求延迟** | 可配置的请求间隔延迟，避免触发 API 限流 |
 | **超时控制** | 可配置的请求超时时间（默认 10 分钟） |
 | **立即取消** | 取消请求时通过 `reader.cancel()` 立即中断流式读取 |
-| **视觉代理配置** | 支持通过设置 `<prefix>.visionProxyModel`、`<prefix>.visionProxyThinking` 配置图片代理所使用的视觉模型和思考模式。**视觉模型仅从本供应商查找**（`findVisionModel` 多级回退匹配裸 ID/完整 ID）。视觉模型 ID 直接通过 `<prefix>.visionProxyModel` 设置填写 |
+| **视觉代理配置** | 支持通过设置 `<prefix>.visionProxyModel`、`<prefix>.visionProxyThinking` 配置图片代理所使用的视觉模型和思考模式。**`visionProxyModel` 留空（默认）= 运行时自动选择**（第一个非主模型的视觉模型），设置项是可选覆盖而非必填。推荐用 `<prefix>.selectVisionProxyModel` 命令从当前可用视觉模型中 QuickPick 选择（写入已定义的最具体设置作用域），避免手写 ID。**视觉模型仅从本供应商查找**（`findVisionModel` 多级回退匹配裸 ID/完整 ID） |
 | **安装欢迎页 (Walkthrough)** | 引导向导（3 个步骤：设置 API Key、显示模型、高级设置），**仅可手动打开**（命令面板 → Welcome: Open Walkthrough）。**不自动弹出** |
 
 > **注**：上表中的 `<prefix>` 指命令/设置前缀（当前 `any2copilot`，移植时全局替换，见 [`PLATFORM_PORTING.md`](../PLATFORM_PORTING.md) §1.2）。
@@ -105,7 +105,7 @@
 │  │  用户发送消息 → LanguageModelChatProvider                     │  │
 │  │                    ↓                                          │  │
 │  │  ChatModelProvider (provider/provider.ts)                     │  │
-│  │   1. 获取模型配置 (getBuiltInModelConfig)                     │  │
+│  │   1. 获取模型配置 (getModelInfo → toProviderModelItem)         │  │
 │  │   2. 获取 API Key (SecretStorage)                             │  │
 │  │   3. 计算 Token 用量 (provideToken → statusBar)               │  │
 │  │   3b. 可选: 向 Copilot Chat 原生 Token 指示器报告用量          │  │
@@ -144,8 +144,8 @@ activate(context)
   ├── vscode.lm.registerLanguageModelChatProvider(<vendor>, provider)
   ├── registerCommands(context, provider)   ← 委托 src/commands/registerCommands.ts
   │   ├── onDidChangeConfiguration 监听       ← apiMode / enableAutoModelDiscovery 变化时刷新模型列表
-  │   └── 注册全部命令（manageApiKeys / openSettings / generateGitCommitMessage /
-  │       abortGitCommitMessage / syncPush / syncPull / checkUsage）
+  │   └── 注册全部命令（manageApiKeys / openSettings / selectVisionProxyModel /
+  │       generateGitCommitMessage / abortGitCommitMessage / syncPush / syncPull / checkUsage）
   ├── syncModelsOnStartup(context)          ← 启动模型同步（每日最多一次）
   ├── autoPullOnStartup(context)            ← 启动云同步自动拉取（静默）
   ├── registerCloudSyncAutoPush(context)    ← 注册 key store 变更监听（去抖自动推送）
@@ -160,8 +160,8 @@ activate(context)
 ```
 provideLanguageModelChatResponse(model, messages, options, progress, token)
   │
-  ├── 1. 解析模型 ID → getBuiltInModelConfig(model.id)
-  │       内置模型查找失败时回退到 getAutoDiscoveredModelConfig(model.id)
+  ├── 1. 解析模型 ID → getModelInfo(model.id)（归一化注册表单一查询）
+  │       toProviderModelItem(modelInfo) 生成每次请求独立的可变配置
   │
   ├── 2. 应用用户配置的 reasoningEffort（applyReasoningEffort）
   │       ├── "disabled" → 关闭思考（always 模型除外）
@@ -292,7 +292,8 @@ provideLanguageModelChatResponse(model, messages, options, progress, token)
   │      ask_image 和 ask_with_multi_image 被缓存到 interceptedToolCall
   │
   └── 5. handleInterceptedToolCall() 循环（多轮追问，最多 visionMaxRounds 次，代码夹取 [1,20]）
-         ├── 递归守卫：visionProxyModel 指向非视觉模型（或与主模型相同）→ 提示并返回
+         ├── 视觉模型解析：visionProxyModel 留空/过期/指向非视觉模型（或与主模型相同）
+         │   → 自动回退到注册表挑选（getVisionModelInfos 第一个非主模型）；无可用 → 提示并返回
          ├── 发出 thinking 块 + 视觉模型流式输出
          ├── 输出跨轮视觉历史 DataPart（VS Code 自动带入下一轮对话）
          ├── 构建 assistant tool_call + tool result 消息并再次请求
@@ -313,7 +314,8 @@ generateCommitMsg(secrets, scm?)
   ├── 多仓库处理（0/1/多仓库分别处理）
   ├── 构建 Prompt（系统提示词 + 最近提交风格 + 语言检测 + 用户输入 + diff）
   ├── 调用 API（多 key 轮换循环）
-  │   ├── ensureApiKeyEntry → pickNextApiKey
+  │   ├── ensureApiKeyEntry → ensureModelRegistry（填充归一化注册表）
+  │   ├── getModelInfo(commitModelId) → toProviderModelItem（注册表单一查询）
   │   ├── OpenaiApi/AnthropicApi/ResponsesApi.createMessage()
   │   ├── 流式输出到 SCM InputBox
   │   └── 轮换错误 → 换 key 重试
@@ -371,17 +373,21 @@ src/
 │   ├── accountInfo.ts                    # ★ 平台账号信息查询（queryAccountInfo）+ 到期日格式化 + POINTS_PER_CNY
 │   └── planUsage.ts                      # 套餐用量快照（5h/周/月窗口 + 余额 + 计费模式）
 ├── models/                               # 模型定义与发现
-│   ├── models.ts                         # 内置模型定义清单（★ 移植时替换）
-│   ├── modelsDev.ts                      # models.dev 元数据拉取与查询
+│   ├── index.ts                          # barrel（统一导出，消费方从 "../models" 导入）
+│   ├── models.ts                         # 内置模型定义清单（★ 移植时替换，纯离线兜底）
+│   ├── modelsDev.ts                      # models.dev 元数据拉取与查询（大小写不敏感查找）
 │   ├── apiModelList.ts                   # API 模型列表获取（/v1/models）
-│   ├── visionModels.ts                   # 视觉能力判定（models.dev + 硬编码兜底）
+│   ├── visionModels.ts                   # 视觉能力判定（/v1/models 三态 → models.dev）
+│   ├── registry.ts                       # ★ 归一化模型注册表（单一事实来源）
+│   ├── chatInfo.ts                       # ModelInfo → VS Code 条目 / 请求体配置适配器
 │   ├── modelSync.ts                      # 启动模型同步（每日一次，一行日志）
-│   └── provideModel.ts                   # 模型信息提供函数（含自动发现）
+│   └── provideModel.ts                   # VS Code 模型入口（薄适配，按 apiMode 过滤）
 ├── commands/                             # 命令与 QuickPick UI
 │   ├── registerCommands.ts               # 全部命令注册 + 配置变更监听
 │   ├── apiKeyManagerUi.ts                # manageApiKeys 主入口
 │   ├── apiKeyDisplay.ts                  # key 展示辅助（余额格式化 / 详情行 / QuickPick 项）
 │   ├── apiKeyFlows.ts                    # key 管理交互流程（增删改/导入/检测/凭据）
+│   ├── visionProxyCommand.ts             # selectVisionProxyModel 视觉代理模型选择器
 │   └── checkUsageCommand.ts              # 套餐用量刷新（仅状态栏点击，命令面板隐藏）
 ├── core/                                 # 基础设施
 │   ├── logger.ts                         # 日志系统
@@ -488,15 +494,19 @@ test/                                     # 测试脚本（运行前需 npm run 
 | `balance/config.ts` | 余额阈值 / TTL 配置读取 + `toNumber` |
 | `balance/accountInfo.ts` | ★ 平台账号信息：`queryAccountInfo`（**移植对接点**）、`getAccountInfoWithStatus`、`getAccountInfoCached`、`formatExpiryDate`、`POINTS_PER_CNY` |
 | `balance/planUsage.ts` | 套餐用量快照：`buildSnapshot`（归一化 + 三态 `billingMode`）、`classifyWindow`、`getWindowPercent`、`isPlanExhausted`、全套格式化函数 |
-| `models/models.ts` | 内置模型定义清单（★ 移植时替换）+ 模型配置查询 |
-| `models/apiModelList.ts` | API 模型列表获取（`/v1/models`），5 分钟缓存，静默降级 |
-| `models/visionModels.ts` | 视觉能力判定（API 标记 → models.dev → 硬编码兜底） |
+| `models/models.ts` | 内置模型定义清单（★ 移植时替换，纯离线兜底）+ 默认值（`DEFAULT_CONTEXT_LENGTH` / `DEFAULT_MAX_TOKENS` / `getMaxInputTokensRatio`） |
+| `models/apiModelList.ts` | API 模型列表获取（`/v1/models`），5 分钟缓存，静默降级；`supports_vision` 三态直传 |
+| `models/modelsDev.ts` | models.dev 目录拉取与查询（大小写不敏感索引，无模糊匹配） |
+| `models/visionModels.ts` | 视觉能力判定（`/v1/models` 三态 → models.dev `modalities.input` 优先于 `attachment` → `false`） |
+| `models/registry.ts` | ★ 归一化模型注册表（单一事实来源）：`refreshModelRegistry` / `getModelInfo` / `getModelInfos` / `getVisionModelInfos` / `isVisionCapableModelId` / `bareModelId` / `getAnthropicModelIds` / `getResponsesModelIds` / `ensureModelRegistry` |
+| `models/chatInfo.ts` | `ModelInfo` 适配器：`toLanguageModelChatInformation`（VS Code 条目）/ `toProviderModelItem`（请求体配置） |
 | `models/modelSync.ts` | 启动模型同步（每日一次，一行日志，不写文件） |
-| `models/provideModel.ts` | 模型信息提供函数（含自动发现 + 按 apiMode 过滤） |
+| `models/provideModel.ts` | VS Code 模型入口（薄适配：注册表 → `LanguageModelChatInformation[]` + 按 apiMode 过滤） |
 | `commands/registerCommands.ts` | 注册全部命令 + `onDidChangeConfiguration` 监听 |
 | `commands/apiKeyManagerUi.ts` | `showApiKeyManager()` 主入口 |
 | `commands/apiKeyDisplay.ts` | key 展示辅助（纯函数） |
 | `commands/apiKeyFlows.ts` | key 管理交互流程 |
+| `commands/visionProxyCommand.ts` | `selectVisionProxyModel`：QuickPick 从当前可用视觉模型中选择，作用域感知写入设置 |
 | `commands/checkUsageCommand.ts` | 套餐用量刷新（仅状态栏点击，命令面板隐藏） |
 | `core/logger.ts` | 日志输出 (LogOutputChannel) |
 | `core/localize.ts` | 中英文国际化（★ 移植时替换文案） |
@@ -664,12 +674,16 @@ test/                                     # 测试脚本（运行前需 npm run 
 
 ### 5.7 `src/models/` 模块
 
-- `models.ts` ★：`BUILT_IN_MODELS`（移植时替换）/ `getBuiltInModelInfos` / `getBuiltInModelIds` / `getMaxInputTokensRatio` / `getBuiltInModelConfig`
-- `apiModelList.ts`：`getApiModelIds` / `getApiModelMetadataList` / `getResponsesSupportedModelIds` / `getAnthropicSupportedModelIds` / `isApiFetchSuccessful`
-- `modelsDev.ts`：`ensureModelsDevLoaded` / `lookupModelDevEntry`
-- `visionModels.ts`：`resolveVisionCapability`
+> 消费方统一从 `"../models"`（barrel `index.ts`）导入，不直接依赖内部文件布局。
+
+- `models.ts` ★：`BUILT_IN_MODELS`（移植时替换）/ `BuiltInModelDef` / `getBuiltInModelIds` / `getBuiltInModelDef` / `getBuiltInModelDefs` / `EXTENSION_LABEL` / `DEFAULT_CONTEXT_LENGTH` / `DEFAULT_MAX_TOKENS` / `getMaxInputTokensRatio`
+- `apiModelList.ts`：`getApiModelIds` / `getApiModelMetadataList` / `isApiFetchSuccessful`
+- `modelsDev.ts`：`ensureModelsDevLoaded` / `lookupModelDevEntry`（大小写不敏感，无模糊匹配）
+- `visionModels.ts`：`resolveVisionCapability(apiMeta, devEntry)`（三态：`/v1/models` → models.dev `modalities.input` 优先于 `attachment` → `false`）
+- `registry.ts` ★：`ModelInfo` / `refreshModelRegistry` / `ensureModelRegistry` / `getModelInfo` / `getModelInfos` / `getVisionModelInfos` / `isVisionCapableModelId` / `bareModelId` / `getAnthropicModelIds` / `getResponsesModelIds`
+- `chatInfo.ts`：`toLanguageModelChatInformation` / `toProviderModelItem`
 - `modelSync.ts`：`syncModelsOnStartup`
-- `provideModel.ts`：`prepareLanguageModelChatInformation` / `getResponsesModelIds` / `getAnthropicModelIds` / `getAutoDiscoveredModelConfig` / `isVisionCapableModelId`
+- `provideModel.ts`：`prepareLanguageModelChatInformation`（薄 VS Code 入口，按 apiMode 过滤）
 
 ### 5.8 `src/commands/` 模块
 
@@ -677,6 +691,7 @@ test/                                     # 测试脚本（运行前需 npm run 
 - `apiKeyManagerUi.ts`：`showApiKeyManager(context)`
 - `apiKeyDisplay.ts`：`formatBalanceDetailText` / `fetchAccountInfo` / `buildKeyDetailLine` / `buildKeyQuickPickItems`
 - `apiKeyFlows.ts`：`KeyManagerContext` / `addKeyFlow` / `parseBatchImport` / `batchImportFlow` / `deleteKeysFlow` / `pickKey` / `checkAvailabilityFlow` / `checkAllAvailabilityFlow` / `showCheckMenu` / `bindCredentialFlow` / `editKeyFlow`
+- `visionProxyCommand.ts`：`selectVisionProxyModel(secrets)`（QuickPick 选择视觉代理模型，作用域感知写入设置）
 - `checkUsageCommand.ts`：`checkUsageCommand(context)`（强制刷新套餐用量，弹窗展示窗口使用率 + 余额）
 
 ### 5.9 `src/core/` 模块
@@ -892,7 +907,7 @@ type 取值：`feat` | `fix` | `refactor` | `docs` | `chore` | `improve` 等。
 | 类 | PascalCase | `ChatModelProvider` |
 | 接口 | PascalCase | `BuiltInModelDef`, `ProviderModelItem` |
 | 类型 | PascalCase | `OpenAIChatRole`, `ParsedModelId` |
-| 函数 | camelCase | `getBuiltInModelConfig`, `countMessageTokens` |
+| 函数 | camelCase | `getBuiltInModelDef`, `countMessageTokens` |
 | 变量 | camelCase | `requestTimeoutMs`, `apiKey` |
 | 常量 | UPPER_SNAKE_CASE | `BASE_TOKENS_PER_MESSAGE`, `DEFAULT_CONTEXT_LENGTH` |
 | 私有属性 | `_` 前缀 | `_lastRequestTime`, `_toolCallBuffers` |

@@ -21,6 +21,12 @@ export interface ApiModelMetadata {
     desc?: string;
     supports_responses?: boolean;
     supports_anthropic?: boolean;
+    /**
+     * Tri-state vision flag: `true` / `false` / `undefined` (no signal).
+     * `undefined` MUST be preserved — collapsing "no signal" into `false` would
+     * silently mark every unflagged model as text-only and disable the ask_image
+     * proxy for it, overriding models.dev with a guess. See `visionModels.ts`.
+     */
     supports_vision?: boolean;
     supports_reasoning?: boolean;
     supports_tools?: boolean;
@@ -125,30 +131,6 @@ export async function getApiModelIds(apiKey: string | undefined): Promise<Set<st
 export async function getApiModelMetadataList(apiKey: string | undefined): Promise<ApiModelMetadata[]> {
     await ensureApiModelCache(apiKey);
     return cachedModelMetadata ?? [];
-}
-
-/**
- * Get the set of model IDs whose /v1/models entry reports supports_responses=true.
- * These models can use the Responses API protocol (POST /v1/responses).
- *
- * @param apiKey - The API key for authentication.
- * @returns A set of model IDs supporting the Responses API.
- */
-export async function getResponsesSupportedModelIds(apiKey: string | undefined): Promise<Set<string>> {
-    await ensureApiModelCache(apiKey);
-    return new Set((cachedModelMetadata ?? []).filter((m) => m.supports_responses === true).map((m) => m.id));
-}
-
-/**
- * Get the set of model IDs whose /v1/models entry reports supports_anthropic=true.
- * These models can use the Anthropic Messages API protocol (POST /v1/messages).
- *
- * @param apiKey - The API key for authentication.
- * @returns A set of model IDs supporting the Anthropic protocol.
- */
-export async function getAnthropicSupportedModelIds(apiKey: string | undefined): Promise<Set<string>> {
-    await ensureApiModelCache(apiKey);
-    return new Set((cachedModelMetadata ?? []).filter((m) => m.supports_anthropic === true).map((m) => m.id));
 }
 
 /**
