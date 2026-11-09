@@ -37,6 +37,16 @@ export interface ModelsDevEntry {
         output?: number;
         input?: number;
     };
+    /**
+     * 可选思考档位（如 `["low","medium","xhigh"]`）。
+     *
+     * models.dev 主 schema 目前**没有**该字段 —— 档位是平台部署级知识，
+     * 目录只能描述上游模型。这里保留可选声明，供将来目录补上该字段时
+     * `registry.ts` 直接消费，无需改结构。
+     */
+    reasoning_efforts?: string[];
+    /** 默认思考档位（同上，目前通常缺失）。 */
+    default_reasoning_effort?: string;
 }
 
 // ── Module-level cache ──

@@ -21,7 +21,18 @@ export interface BuiltInModelDef {
     thinkingMode: "switchable" | "always" | "adaptive";
     /** Default reasoning effort when thinking is enabled */
     defaultReasoningEffort?: string;
-    /** Supported reasoning effort levels for the model picker UI */
+    /**
+     * Supported reasoning effort levels for the model picker UI.
+     *
+     * ⚠️ **仅当平台不返回档位列表时生效**（离线兜底 / 实测补充）。
+     * 档位是平台部署级知识：有的平台在 `/v1/models` 里返回
+     * `supported_reasoning_efforts`，有的只给"是否支持 reasoning_effort"的布尔标记。
+     * `registry.ts` 的 `resolveReasoningEfforts` 按
+     * **`/v1/models` → models.dev → 本字段 → 代码默认值** 四级回退，
+     * 平台返回时**以平台为准**，本字段不覆盖。
+     *
+     * 用 `scripts/dev/probe-reasoning-efforts.mjs` 实测后填写（按强度升序）。
+     */
     supportedReasoningEfforts?: string[];
     /** Whether to include reasoning_content in assistant messages */
     includeReasoningInRequest?: boolean;
@@ -82,6 +93,10 @@ export function getMaxInputTokensRatio(): number {
  *
  * 移植时按你平台的情况填写每个模型的 `baseId` / `displayName` / `vision` /
  * `thinkingMode` / `contextLength` / `maxTokens`。字段含义见 `BuiltInModelDef`。
+ *
+ * 思考档位（`supportedReasoningEfforts` / `defaultReasoningEffort`）是**可选**的：
+ * 平台 `/v1/models` 返回档位列表时以平台为准，本清单只在平台不返回时兜底。
+ * 若平台不返回档位，用 `scripts/dev/probe-reasoning-efforts.mjs` 实测后填写。
  */
 export const BUILT_IN_MODELS: BuiltInModelDef[] = [
     // 示例：可开关思考的纯文本模型

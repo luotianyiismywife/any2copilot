@@ -42,6 +42,7 @@
 | **多模型支持** | 内置模型定义（`src/models/models.ts` 的 `BUILT_IN_MODELS`，**移植时替换为你平台的模型**，仅作 `/v1/models` 失败时的离线兜底），统一通过推理强度选择器切换思考模式。支持自动模型发现：开启后从 API 获取模型列表，自动过滤不可用模型并发现新增模型 |
 | **自动模型发现** | 通过 `<prefix>.enableAutoModelDiscovery` 配置（默认开启）。**归一化模型注册表**（`src/models/registry.ts`，单一事实来源）合并 `/v1/models` + models.dev 为统一 `ModelInfo`：内置清单**不是叠加层**，仅在 API 获取失败时整份接管。新增模型元数据以 **`/v1/models` 完整元数据为主源**，models.dev 仅提供友好名称与回退规格（大小写不敏感查找）；两源均未知输出上限时不发送 `max_completion_tokens`（交由服务端默认值）。`thinkingMode` 从 `supports_reasoning` 推断。API 不可用时静默回退到全量内置列表。内存缓存（5 分钟 TTL）。**按 API 模式过滤**：`anthropic` 仅显示 `supports_anthropic=true` 的模型，`responses` 仅显示 `supports_responses=true` 的模型。**动态刷新**：通过 `onDidChangeLanguageModelChatInformation` 事件（VS Code 1.125+），切换 `apiMode` / `enableAutoModelDiscovery` 设置时自动刷新选择器，**无需 reload 窗口** |
 | **启动模型同步** | 通过 `<prefix>.syncModelsOnStartup` 配置（默认开启）。每次 VS Code 打开时自动检查 API 是否有新模型，**每日最多同步一次**（`globalState` 记录上次同步日期）。同步结果以**一行日志**输出到输出通道，**不写任何文件** |
+| **思考档位解析** | **不是所有平台都返回可选档位列表**（有的只给"是否支持 `reasoning_effort`"的布尔标记，具体档位属于平台部署级知识，只能实测后手写进内置清单）。`src/models/apiModelList.ts` 的 `parseReasoningEfforts` / `parseDefaultReasoningEffort` 容忍多种字段形状（数组、逗号/空格/竖线/斜杠分隔字符串、`{supported|efforts|values|enum|options|levels|list}` 对象），统一为**小写、去重、强度升序**（`none` → `minimal` → `low` → `medium` → `high` → `xhigh` → `max`），并过滤 `auto`/`adaptive`/`enabled`/`disabled` 这类"开关形态"值。`registry.ts` 的 `resolveReasoningEfforts` 按 **`/v1/models` → models.dev → 内置清单 → 代码默认值** 四级回退，默认档位保证 ∈ 支持列表；`ModelInfo.reasoningEffortsSource` 记录来源（`api`/`modelsdev`/`builtin`/`default`）供日志诊断。平台返回档位时**以平台为准**，内置清单不覆盖 |
 | **三协议 API 模式** | 同时支持 **OpenAI 兼容格式** (`/chat/completions`)、**Anthropic 格式** (`/v1/messages`) 和 **Responses API 格式** (`/v1/responses`)。可通过设置 `<prefix>.apiMode`（默认 `auto`）手动切换。启动时自动读取 `/v1/models` 的 `supports_responses` / `supports_anthropic` 字段并**缓存动态标记**（不硬编码模型 ID）。**auto 模式优先级**：`enableResponsesApi`（默认关闭）→ `enableAnthropicApi`（默认关闭）→ 兜底 OpenAI |
 | **流式推理** | 支持 SSE (Server-Sent Events) 流式响应，实时输出文本和工具调用 |
 | **Thinking/推理** | 支持模型的推理过程展示 ("thinking" 状态)，包括 XML think 块解析 |
@@ -59,7 +60,7 @@
 | **请求延迟** | 可配置的请求间隔延迟，避免触发 API 限流 |
 | **超时控制** | 可配置的请求超时时间（默认 10 分钟） |
 | **立即取消** | 取消请求时通过 `reader.cancel()` 立即中断流式读取 |
-| **视觉代理配置** | 支持通过设置 `<prefix>.visionProxyModel`、`<prefix>.visionProxyThinking` 配置图片代理所使用的视觉模型和思考模式。**`visionProxyModel` 留空（默认）= 运行时自动选择**（第一个非主模型的视觉模型），设置项是可选覆盖而非必填。推荐用 `<prefix>.selectVisionProxyModel` 命令从当前可用视觉模型中 QuickPick 选择（写入已定义的最具体设置作用域），避免手写 ID。**视觉模型仅从本供应商查找**（`findVisionModel` 多级回退匹配裸 ID/完整 ID） |
+| **视觉代理配置** | 支持通过设置 `<prefix>.visionProxyModel`、`<prefix>.visionProxyThinking` 配置图片代理所使用的视觉模型和思考档位。**`visionProxyModel` 留空（默认）= 运行时自动选择**（第一个非主模型的视觉模型），设置项是可选覆盖而非必填。推荐用 `<prefix>.selectVisionProxyModel` 命令从当前可用视觉模型中 QuickPick 选择（写入已定义的最具体设置作用域），避免手写 ID；**选完模型后会从该模型的 `supportedReasoningEfforts`（内置清单）动态加载档位列表**，供选择 `visionProxyThinking`（`Auto (model default)` = 留空 = 不发送 `reasoning_effort`）。`visionProxyThinking` 是**自由字符串**（不是布尔开关），留空/`auto`/旧版布尔残留均按"模型默认"处理；用户选了模型不支持的档位时自动回退到该模型默认档位。**视觉代理复用对话请求链路**（`executeApiRequest`），端点由 `apiMode` 决定，不再走 `vscode.lm.selectChatModels` + `sendRequest()` |
 | **安装欢迎页 (Walkthrough)** | 引导向导（3 个步骤：设置 API Key、显示模型、高级设置），**仅可手动打开**（命令面板 → Welcome: Open Walkthrough）。**不自动弹出** |
 
 > **注**：上表中的 `<prefix>` 指命令/设置前缀（当前 `any2copilot`，移植时全局替换，见 [`PLATFORM_PORTING.md`](../PLATFORM_PORTING.md) §1.2）。
@@ -213,9 +214,13 @@ provideLanguageModelChatResponse(model, messages, options, progress, token)
   │
   ├── 11. 图片代理拦截处理（handleInterceptedToolCall，最多 visionMaxRounds 轮）
   │       ├── 发出 thinking 块: "正在根据图片提问：[问题]" + 视觉模型流式输出
-  │       ├── 调用 callVisionModel() 获取描述
+  │       ├── 调用 callVisionModel() 获取描述（内部复用 executeApiRequest，
+  │       │    端点由 apiMode 决定，reasoning_effort 由 visionProxyThinking 决定）
+  │       ├── 视觉模型返回空串 → 抛错（vision.empty-answer），失败原因回传主模型
   │       ├── 输出跨轮视觉历史 DataPart（createVisionToolHistoryPart）
-  │       ├── 构建 assistant tool_call + tool result 消息并再次请求
+  │       ├── 构建 assistant tool_call + tool result 消息，复用 executeApiRequest 再次请求
+  │       │    （apiInstance 复用外层实例 / apiMessagesOverride 跳过 convertMessages /
+  │       │      skipVisionRounds 防内层递归）
   │       └── 若模型再次调用 ask_image 则继续下一轮
   │
   └── 12. 错误处理 + finally 清理定时器 / 记录请求结束日志
@@ -295,8 +300,13 @@ provideLanguageModelChatResponse(model, messages, options, progress, token)
          ├── 视觉模型解析：visionProxyModel 留空/过期/指向非视觉模型（或与主模型相同）
          │   → 自动回退到注册表挑选（getVisionModelInfos 第一个非主模型）；无可用 → 提示并返回
          ├── 发出 thinking 块 + 视觉模型流式输出
+         │   （callVisionModel → executeApiRequest，端点由 apiMode 决定，
+         │     reasoning_effort 由 visionProxyThinking 决定，经 reasoningEffortOverride 传入）
+         ├── 视觉模型返回空串 → 抛错（vision.empty-answer），失败原因回传主模型
          ├── 输出跨轮视觉历史 DataPart（VS Code 自动带入下一轮对话）
-         ├── 构建 assistant tool_call + tool result 消息并再次请求
+         ├── 构建 assistant tool_call + tool result 消息，复用 executeApiRequest 再次请求
+         │   （apiInstance 复用外层实例 / apiMessagesOverride 跳过 convertMessages /
+         │     skipVisionRounds 防内层递归）
          ├── 轮次失败 → 包装为 VisionRoundError（轮换循环直接抛出，不换 key）
          └── 若模型再次调用 ask_image → 继续循环
 
@@ -376,9 +386,9 @@ src/
 │   ├── index.ts                          # barrel（统一导出，消费方从 "../models" 导入）
 │   ├── models.ts                         # 内置模型定义清单（★ 移植时替换，纯离线兜底）
 │   ├── modelsDev.ts                      # models.dev 元数据拉取与查询（大小写不敏感查找）
-│   ├── apiModelList.ts                   # API 模型列表获取（/v1/models）
+│   ├── apiModelList.ts                   # API 模型列表获取（/v1/models）+ 思考档位解析
 │   ├── visionModels.ts                   # 视觉能力判定（/v1/models 三态 → models.dev）
-│   ├── registry.ts                       # ★ 归一化模型注册表（单一事实来源）
+│   ├── registry.ts                       # ★ 归一化模型注册表（单一事实来源）+ 档位四级回退
 │   ├── chatInfo.ts                       # ModelInfo → VS Code 条目 / 请求体配置适配器
 │   ├── modelSync.ts                      # 启动模型同步（每日一次，一行日志）
 │   └── provideModel.ts                   # VS Code 模型入口（薄适配，按 apiMode 过滤）
@@ -387,7 +397,7 @@ src/
 │   ├── apiKeyManagerUi.ts                # manageApiKeys 主入口
 │   ├── apiKeyDisplay.ts                  # key 展示辅助（余额格式化 / 详情行 / QuickPick 项）
 │   ├── apiKeyFlows.ts                    # key 管理交互流程（增删改/导入/检测/凭据）
-│   ├── visionProxyCommand.ts             # selectVisionProxyModel 视觉代理模型选择器
+│   ├── visionProxyCommand.ts             # selectVisionProxyModel 视觉代理模型 + 思考档位选择器
 │   └── checkUsageCommand.ts              # 套餐用量刷新（仅状态栏点击，命令面板隐藏）
 ├── core/                                 # 基础设施
 │   ├── logger.ts                         # 日志系统
@@ -411,7 +421,7 @@ src/
 │   ├── types.ts                          # Vision proxy 类型定义
 │   ├── historyCodec.ts                   # 跨轮视觉历史编解码
 │   ├── historyPart.ts                    # 跨轮视觉历史 DataPart 创建/解析
-│   └── imageProxy.ts                     # 图片代理核心 (ask_image)
+│   └── imageProxy.ts                     # 图片代理核心 (ask_image，复用 executeApiRequest)
 └── typings/                              # VS Code proposed API 类型声明（仅编译期）
     ├── vscode.proposed.chatProvider.d.ts
     ├── vscode.proposed.languageModelDataPart.d.ts
@@ -429,6 +439,7 @@ scripts/
 └── dev/                                  # 开发调试
     ├── check-new-models.mjs              # 检查 API 新模型
     ├── check-settings.mjs                # 设置项一致性核对（挂到 compile）
+    ├── probe-reasoning-efforts.mjs       # 探测各模型 reasoning_effort 档位支持范围
     ├── port.mjs                          # 批量移植（中性占位符 → 平台值，npm run port）
     └── audit-all.mjs                     # 完整审计（npm run audit，7 项检查）
 
@@ -449,6 +460,7 @@ test/                                     # 测试脚本（运行前需 npm run 
 ├── test-keys.mjs                         # Key 选择与状态测试
 ├── test-rotation.mjs                     # 轮换循环测试
 ├── test-banned-rotation.mjs              # 封号检测与轮换测试
+├── test-reasoning-efforts.mjs            # 思考档位解析与四级回退测试
 ├── test-vision-history.mjs               # 跨轮视觉历史编解码 + 双 API 转换器闭环
 ├── test-anthropic-tool-result-merge.mjs  # Anthropic 连续工具结果合并
 ├── test-anthropic-image-index.mjs        # Anthropic 图片索引顺序（回归：延迟分配导致索引错位）
@@ -460,6 +472,7 @@ test/                                     # 测试脚本（运行前需 npm run 
 ├── test-cloud-sync-auto-push.mjs         # 云同步 payload 去重
 ├── test-cloud-sync-flow.mjs              # 云同步 push/pull 集成
 ├── test-cloud-sync-e2e.mjs               # 云同步真实端到端（需 gist 凭据）
+├── test-three-path.mjs                  # 三路径冲突集成测试（主对话/视觉代理/主模型续跑，需真实 API Key）
 ├── api-tests.mjs                         # 三协议联网测试（需真实 API Key）
 └── README.md                             # 测试说明
 .copilot/
@@ -482,8 +495,8 @@ test/                                     # 测试脚本（运行前需 npm run 
 | `provider/provider.ts` | `ChatModelProvider`：VS Code 接口实现 + 请求编排 |
 | `provider/requestOptions.ts` | 请求参数决策：`applyReasoningEffort` / `applyTemperature` / `resolveApiMode` |
 | `provider/rotation.ts` | `runKeyRotationLoop()`：多 key 轮换循环 |
-| `provider/apiDispatch.ts` | `executeApiRequest()`：三协议分发、请求体构建、流式处理、零正文检测 |
-| `provider/visionRounds.ts` | `handleInterceptedToolCall()`：ask_image 图片代理多轮 |
+| `provider/apiDispatch.ts` | `executeApiRequest()`：三协议分发、请求体构建、流式处理、零正文检测；支持 `reasoningEffortOverride` / `apiInstance` / `apiMessagesOverride` / `skipVisionRounds` 四个可选参数（视觉代理与主模型续跑复用同一链路） |
+| `provider/visionRounds.ts` | `handleInterceptedToolCall()`：ask_image 图片代理多轮；三协议轮次均构造 tool 消息后委托 `executeApiRequest` |
 | `provider/errors.ts` | `VisionRoundError`（视觉代理轮内失败标记，不触发 key 轮换）/ `REASON_TEXT` / `buildAllKeysUnavailableDetail` / `tryTransientRetryRound` / `checkZeroAnswerBudgetExhausted` / `reportNativeUsage` / `getRequestedReasoningEffort` |
 | `keys/keyManager.ts` | barrel：统一导出 `keys/` 下全部 API |
 | `keys/store.ts` | SecretStorage 读写与旧版单 key 迁移、增删改（含缓存语义比较） |
@@ -495,10 +508,10 @@ test/                                     # 测试脚本（运行前需 npm run 
 | `balance/accountInfo.ts` | ★ 平台账号信息：`queryAccountInfo`（**移植对接点**）、`getAccountInfoWithStatus`、`getAccountInfoCached`、`formatExpiryDate`、`POINTS_PER_CNY` |
 | `balance/planUsage.ts` | 套餐用量快照：`buildSnapshot`（归一化 + 三态 `billingMode`）、`classifyWindow`、`getWindowPercent`、`isPlanExhausted`、全套格式化函数 |
 | `models/models.ts` | 内置模型定义清单（★ 移植时替换，纯离线兜底）+ 默认值（`DEFAULT_CONTEXT_LENGTH` / `DEFAULT_MAX_TOKENS` / `getMaxInputTokensRatio`） |
-| `models/apiModelList.ts` | API 模型列表获取（`/v1/models`），5 分钟缓存，静默降级；`supports_vision` 三态直传 |
+| `models/apiModelList.ts` | API 模型列表获取（`/v1/models`），5 分钟缓存，静默降级；`supports_vision` 三态直传；`parseReasoningEfforts` / `parseDefaultReasoningEffort` 容忍多字段形状并归一化为强度升序 |
 | `models/modelsDev.ts` | models.dev 目录拉取与查询（大小写不敏感索引，无模糊匹配） |
 | `models/visionModels.ts` | 视觉能力判定（`/v1/models` 三态 → models.dev `modalities.input` 优先于 `attachment` → `false`） |
-| `models/registry.ts` | ★ 归一化模型注册表（单一事实来源）：`refreshModelRegistry` / `getModelInfo` / `getModelInfos` / `getVisionModelInfos` / `isVisionCapableModelId` / `bareModelId` / `getAnthropicModelIds` / `getResponsesModelIds` / `ensureModelRegistry` |
+| `models/registry.ts` | ★ 归一化模型注册表（单一事实来源）：`refreshModelRegistry` / `getModelInfo` / `getModelInfos` / `getVisionModelInfos` / `isVisionCapableModelId` / `bareModelId` / `getAnthropicModelIds` / `getResponsesModelIds` / `ensureModelRegistry` / `resolveReasoningEfforts`（档位四级回退） |
 | `models/chatInfo.ts` | `ModelInfo` 适配器：`toLanguageModelChatInformation`（VS Code 条目）/ `toProviderModelItem`（请求体配置） |
 | `models/modelSync.ts` | 启动模型同步（每日一次，一行日志，不写文件） |
 | `models/provideModel.ts` | VS Code 模型入口（薄适配：注册表 → `LanguageModelChatInformation[]` + 按 apiMode 过滤） |
@@ -506,7 +519,7 @@ test/                                     # 测试脚本（运行前需 npm run 
 | `commands/apiKeyManagerUi.ts` | `showApiKeyManager()` 主入口 |
 | `commands/apiKeyDisplay.ts` | key 展示辅助（纯函数） |
 | `commands/apiKeyFlows.ts` | key 管理交互流程 |
-| `commands/visionProxyCommand.ts` | `selectVisionProxyModel`：QuickPick 从当前可用视觉模型中选择，作用域感知写入设置 |
+| `commands/visionProxyCommand.ts` | `selectVisionProxyModel`：QuickPick 从当前可用视觉模型中选择，作用域感知写入设置；选完模型后动态加载该模型的思考档位供选择 |
 | `commands/checkUsageCommand.ts` | 套餐用量刷新（仅状态栏点击，命令面板隐藏） |
 | `core/logger.ts` | 日志输出 (LogOutputChannel) |
 | `core/localize.ts` | 中英文国际化（★ 移植时替换文案） |
@@ -524,11 +537,12 @@ test/                                     # 测试脚本（运行前需 npm run 
 | `vision/types.ts` | Vision proxy 类型定义 + 非视觉图片引用工厂 |
 | `vision/historyCodec.ts` | 跨轮视觉历史编解码 |
 | `vision/historyPart.ts` | 跨轮视觉历史 DataPart 创建/解析 |
-| `vision/imageProxy.ts` | 图片代理核心：调用视觉模型描述图片 |
+| `vision/imageProxy.ts` | 图片代理核心：`VisionProxyContext` / `resolveVisionReasoningEffort` / `sendVisionRequest` / `callVisionModel` / `callVisionModelMulti`（复用 `executeApiRequest`，空答案抛错） |
 | `scripts/build/clean.mjs` | 清理 `out/`（compile 前置，防止陈旧产物进 VSIX） |
 | `scripts/build/build-info.mjs` | 编译元信息生成（版本号 + 编译时间 + 时区） |
 | `scripts/build/package-vsix.mjs` | VSIX 打包（输出名固定 `<name>-<version>.vsix`） |
 | `scripts/dev/check-settings.mjs` | 设置项一致性核对（挂到 compile） |
+| `scripts/dev/probe-reasoning-efforts.mjs` | 探测各 chat 模型的 `reasoning_effort` 档位支持范围（输出 `models.ts` 更新建议） |
 | `scripts/dev/audit-all.mjs` | 完整审计（7 项检查） |
 
 ---
@@ -566,6 +580,7 @@ test/                                     # 测试脚本（运行前需 npm run 
 - [ ] `GET /v1/models` 返回结构：是否有 `mode`/`protocols`/`supports_*` 字段？非 llm 模型是否需要过滤？
 - [ ] 三协议支持情况：`/v1/chat/completions`、`/v1/messages`、`/v1/responses`——不支持的协议在 `resolveApiMode` 里锁死为 `openai`
 - [ ] `thinking` / `reasoning_effort` 参数的合法取值（各平台差异极大，400 就是对拍点）
+- [ ] **思考档位是否由平台返回**：`/v1/models` 若返回 `supported_reasoning_efforts` / `default_reasoning_effort`（或 `reasoning.efforts` 等形状），`registry.ts` 会**以平台为准**；不返回时回退到内置清单 `BUILT_IN_MODELS[].supportedReasoningEfforts`（需用 `scripts/dev/probe-reasoning-efforts.mjs` 实测后手写）
 - [ ] 流式 SSE 事件格式是否标准（`data: {...}` / `[DONE]`）
 - [ ] 余额/套餐端点：响应结构、积分单位（**1 元 = 多少积分**，各平台不同，别混用）
 - [ ] 限流特征：429/402/401 的语义与返回体（`src/keys/config.ts` 的 `errorRules` 四元组）
@@ -659,8 +674,8 @@ test/                                     # 测试脚本（运行前需 npm run 
 - `provider.ts`：`ChatModelProvider`（`provideLanguageModelChatInformation` / `provideTokenCount` / `provideLanguageModelChatResponse` / `notifyModelListChanged`）
 - `requestOptions.ts`：`applyReasoningEffort` / `applyTemperature` / `resolveApiMode`
 - `rotation.ts`：`runKeyRotationLoop(params)`
-- `apiDispatch.ts`：`executeApiRequest(params)`
-- `visionRounds.ts`：`handleInterceptedToolCall(params)`
+- `apiDispatch.ts`：`executeApiRequest(params)`；可选参数 `reasoningEffortOverride`（代理请求思考档位覆盖，`"auto"` = 不发送）/ `apiInstance`（复用外层 api 实例，保留 `_hasImages` / `_systemContent` / `capturedReasoningContent`）/ `apiMessagesOverride`（跳过 `convertMessages`，原样重放已转换消息）/ `skipVisionRounds`（防内层递归）
+- `visionRounds.ts`：`handleInterceptedToolCall(params)`；`runAnthropicRound` / `runResponsesRound` / `runOpenAIRound` 均构造 tool 消息后委托 `executeApiRequest`
 - `errors.ts`：`VisionRoundError`（视觉代理轮内失败标记，不触发 key 轮换）/ `TransientRetryExhaustedError`（瞬态错误同 key 重试耗尽后的友好错误）/ `REASON_TEXT` / `checkZeroAnswerBudgetExhausted` / `buildAllKeysUnavailableDetail` / `tryTransientRetryRound` / `reportNativeUsage` / `getRequestedReasoningEffort`
 
 ### 5.6 `src/api/` 模块
@@ -677,10 +692,10 @@ test/                                     # 测试脚本（运行前需 npm run 
 > 消费方统一从 `"../models"`（barrel `index.ts`）导入，不直接依赖内部文件布局。
 
 - `models.ts` ★：`BUILT_IN_MODELS`（移植时替换）/ `BuiltInModelDef` / `getBuiltInModelIds` / `getBuiltInModelDef` / `getBuiltInModelDefs` / `EXTENSION_LABEL` / `DEFAULT_CONTEXT_LENGTH` / `DEFAULT_MAX_TOKENS` / `getMaxInputTokensRatio`
-- `apiModelList.ts`：`getApiModelIds` / `getApiModelMetadataList` / `isApiFetchSuccessful`
+- `apiModelList.ts`：`getApiModelIds` / `getApiModelMetadataList` / `isApiFetchSuccessful` / `parseReasoningEfforts`（数组 / 分隔字符串 / 对象 → 小写去重强度升序）/ `parseDefaultReasoningEffort` / `REASONING_EFFORT_ORDER`
 - `modelsDev.ts`：`ensureModelsDevLoaded` / `lookupModelDevEntry`（大小写不敏感，无模糊匹配）
 - `visionModels.ts`：`resolveVisionCapability(apiMeta, devEntry)`（三态：`/v1/models` → models.dev `modalities.input` 优先于 `attachment` → `false`）
-- `registry.ts` ★：`ModelInfo` / `refreshModelRegistry` / `ensureModelRegistry` / `getModelInfo` / `getModelInfos` / `getVisionModelInfos` / `isVisionCapableModelId` / `bareModelId` / `getAnthropicModelIds` / `getResponsesModelIds`
+- `registry.ts` ★：`ModelInfo` / `refreshModelRegistry` / `ensureModelRegistry` / `getModelInfo` / `getModelInfos` / `getVisionModelInfos` / `isVisionCapableModelId` / `bareModelId` / `getAnthropicModelIds` / `getResponsesModelIds` / `resolveReasoningEfforts`（平台 → models.dev → 内置清单 → 默认值四级回退）/ `ReasoningEffortsSource` / `ResolvedReasoningEfforts`
 - `chatInfo.ts`：`toLanguageModelChatInformation` / `toProviderModelItem`
 - `modelSync.ts`：`syncModelsOnStartup`
 - `provideModel.ts`：`prepareLanguageModelChatInformation`（薄 VS Code 入口，按 apiMode 过滤）
@@ -691,7 +706,7 @@ test/                                     # 测试脚本（运行前需 npm run 
 - `apiKeyManagerUi.ts`：`showApiKeyManager(context)`
 - `apiKeyDisplay.ts`：`formatBalanceDetailText` / `fetchAccountInfo` / `buildKeyDetailLine` / `buildKeyQuickPickItems`
 - `apiKeyFlows.ts`：`KeyManagerContext` / `addKeyFlow` / `parseBatchImport` / `batchImportFlow` / `deleteKeysFlow` / `pickKey` / `checkAvailabilityFlow` / `checkAllAvailabilityFlow` / `showCheckMenu` / `bindCredentialFlow` / `editKeyFlow`
-- `visionProxyCommand.ts`：`selectVisionProxyModel(secrets)`（QuickPick 选择视觉代理模型，作用域感知写入设置）
+- `visionProxyCommand.ts`：`selectVisionProxyModel(secrets)`（QuickPick 选择视觉代理模型，作用域感知写入设置；选完模型后从该模型 `supportedReasoningEfforts` 动态加载思考档位，写入 `visionProxyThinking`）
 - `checkUsageCommand.ts`：`checkUsageCommand(context)`（强制刷新套餐用量，弹窗展示窗口使用率 + 余额）
 
 ### 5.9 `src/core/` 模块
@@ -727,7 +742,7 @@ test/                                     # 测试脚本（运行前需 npm run 
 - `types.ts`：`StoredImage` / `InterceptedToolCall` / `ASK_IMAGE_TOOL_DEF` / `ASK_WITH_MULTI_IMAGE_TOOL_DEF` / `buildUserImageReference` / `buildToolImageReference`
 - `historyCodec.ts`：`VISION_TOOL_HISTORY_MIME` / `serializeVisionToolHistory` / `deserializeVisionToolHistory` / `toOpenAIVisionToolMessages` / `toAnthropicVisionToolMessages`
 - `historyPart.ts`：`createVisionToolHistoryPart` / `parseVisionToolHistoryPart`
-- `imageProxy.ts`：`findVisionModel` / `callVisionModel` / `callVisionModelMulti`
+- `imageProxy.ts`：`VisionProxyContext` / `resolveVisionReasoningEffort` / `sendVisionRequest` / `callVisionModel` / `callVisionModelMulti`（复用 `executeApiRequest`，空答案抛错）
 
 ---
 
@@ -758,6 +773,14 @@ npm run test:offline
 
 # 云同步真实端到端测试（需 GitHub gist 权限凭据；无凭据时 SKIP 退出 0）
 npm run test:e2e
+
+# 探测各 chat 模型的 reasoning_effort 档位支持范围（需真实 API Key，消耗额度）
+node scripts/dev/probe-reasoning-efforts.mjs --api-key <key>
+# 或 PROVIDER_API_KEY=<key> node scripts/dev/probe-reasoning-efforts.mjs
+# 可选：--models <id1,id2> / --efforts <e1,e2> / --gap-ms <n> / --timeout-ms <n> / --base-url <url>
+
+# 三路径冲突集成测试（主对话 / 视觉代理 / 主模型续跑，需真实 API Key）
+node test/test-three-path.mjs <API_KEY>
 
 # 打包 VSIX
 npm run build
@@ -932,6 +955,7 @@ type 取值：`feat` | `fix` | `refactor` | `docs` | `chore` | `improve` 等。
 - 网络请求使用 `executeWithRetry()`（HTTP 层，默认 2 次，仅网关错误 502/504 + 网络错误）；平台错误（429/500/503）由整轮层 `tryTransientRetryRound` 处理（默认 3 次）
 - 请求超时 → 友好的本地化错误消息
 - 流式解析错误 → 记录日志，继续处理（不中断流）
+- 视觉代理空答案 → 抛错（`vision.empty-answer`），失败原因写进 tool result 回传主模型（**绝不把空串当成功答案**）
 - 所有未捕获错误由 `provider.ts` 的 `catch` 块统一处理
 
 ### 7.12 日志规范

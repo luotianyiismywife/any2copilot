@@ -20,7 +20,13 @@
  * 本模块不依赖 `vscode` 的 UI 能力，只依赖数据源与日志，便于单测。
  */
 import { logger } from "../core/logger";
-import { getApiModelIds, getApiModelMetadataList, isApiFetchSuccessful, type ApiModelMetadata } from "./apiModelList";
+import {
+    getApiModelIds,
+    getApiModelMetadataList,
+    isApiFetchSuccessful,
+    parseReasoningEfforts,
+    type ApiModelMetadata,
+} from "./apiModelList";
 import { ensureModelsDevLoaded, lookupModelDevEntry, type ModelsDevEntry } from "./modelsDev";
 import {
     DEFAULT_CONTEXT_LENGTH,
@@ -56,6 +62,14 @@ export interface ModelInfo {
     supportedReasoningEfforts?: string[];
     /** 默认思考档位。 */
     defaultReasoningEffort?: string;
+    /**
+     * `supportedReasoningEfforts` 的来源。
+     *
+     * 档位**不是**所有平台都会返回：有的平台只给"是否支持 reasoning_effort"
+     * 的布尔标记，具体档位属于平台部署级知识，只能实测后手写进内置清单。
+     * 因此按 `api` → `modelsdev` → `builtin` → `default` 逐级回退。
+     */
+    reasoningEffortsSource?: ReasoningEffortsSource;
     /** 是否在 assistant 消息里回传思考内容。 */
     includeReasoningInRequest: boolean;
     /** 是否接受 temperature / top_p。 */
@@ -89,6 +103,89 @@ let _registry = new Map<string, ModelInfo>();
 let _anthropicModelIds = new Set<string>();
 let _responsesModelIds = new Set<string>();
 
+/** 思考档位来源（诊断用）。 */
+export type ReasoningEffortsSource = "api" | "modelsdev" | "builtin" | "default";
+
+/** 解析后的思考档位。 */
+export interface ResolvedReasoningEfforts {
+    /** 可选档位（不含 `disabled`），按强度升序。 */
+    supported: string[];
+    /** 默认档位，保证 ∈ `supported`。 */
+    default: string;
+    /** `supported` 的来源。 */
+    source: ReasoningEffortsSource;
+}
+
+/** 所有数据源都不知道档位时的兜底列表（与历史行为一致）。 */
+const FALLBACK_REASONING_EFFORTS = ["low", "medium", "high"];
+
+/**
+ * 解析模型的可选思考档位与默认档位。
+ *
+ * 档位列表**不是**所有平台都会返回 —— 有的平台（如 AMD TokenFactory）只给
+ * "是否支持 reasoning_effort" 的布尔标记，具体档位属于平台部署级知识，只能
+ * 实测后手写进内置清单。因此按以下顺序回退（首个非空者生效）：
+ *
+ *   1. `/v1/models` 返回的 `supported_reasoning_efforts`（平台真值，最权威）
+ *   2. models.dev 条目的 `reasoning_efforts`
+ *   3. 内置清单 `BUILT_IN_MODELS[].supportedReasoningEfforts`（离线兜底 / 实测补充）
+ *   4. 代码默认值 `["low","medium","high"]`
+ *
+ * 默认档位同理：平台 → models.dev → 内置清单 → 列表里含 `high` 则 `high`，
+ * 否则取列表最后一项（强度最高）。**默认档位必须 ∈ 支持列表**，否则选择器
+ * 会渲染出一个不存在的默认值。
+ *
+ * @param modelId 裸模型 ID（与内置清单的 `baseId` 对齐）。
+ * @param apiMeta `/v1/models` 元数据（可能为 undefined）。
+ * @param devEntry models.dev 条目（可能为 undefined）。
+ */
+export function resolveReasoningEfforts(
+    modelId: string,
+    apiMeta?: ApiModelMetadata,
+    devEntry?: ModelsDevEntry
+): ResolvedReasoningEfforts {
+    const builtin = getBuiltInModelDef(modelId);
+
+    const sources: Array<[ReasoningEffortsSource, unknown]> = [
+        ["api", apiMeta?.supported_reasoning_efforts],
+        ["modelsdev", devEntry?.reasoning_efforts],
+        ["builtin", builtin?.supportedReasoningEfforts],
+    ];
+
+    let supported: string[] = [];
+    let source: ReasoningEffortsSource = "default";
+    for (const [candidateSource, raw] of sources) {
+        const parsed = parseReasoningEfforts(raw);
+        if (parsed && parsed.length > 0) {
+            supported = parsed;
+            source = candidateSource;
+            break;
+        }
+    }
+    if (supported.length === 0) {
+        supported = [...FALLBACK_REASONING_EFFORTS];
+    }
+
+    const defaultCandidates = [
+        apiMeta?.default_reasoning_effort,
+        devEntry?.default_reasoning_effort,
+        builtin?.defaultReasoningEffort,
+    ];
+    let defaultEffort: string | undefined;
+    for (const candidate of defaultCandidates) {
+        const normalized = typeof candidate === "string" ? candidate.trim().toLowerCase() : "";
+        if (normalized && supported.includes(normalized)) {
+            defaultEffort = normalized;
+            break;
+        }
+    }
+    if (!defaultEffort) {
+        defaultEffort = supported.includes("high") ? "high" : supported[supported.length - 1];
+    }
+
+    return { supported, default: defaultEffort, source };
+}
+
 /**
  * 去掉 vendor 前缀，得到裸模型 ID。
  * 设置项里可能写成 `any2copilot/example-model`，能力查询与比较统一用裸 ID。
@@ -110,6 +207,7 @@ function fromBuiltIn(def: BuiltInModelDef): ModelInfo {
         thinkingMode: def.thinkingMode,
         supportedReasoningEfforts: def.supportedReasoningEfforts,
         defaultReasoningEffort: def.defaultReasoningEffort,
+        reasoningEffortsSource: def.supportedReasoningEfforts?.length ? "builtin" : "default",
         includeReasoningInRequest: def.includeReasoningInRequest ?? true,
         supportsTemperature: def.supportsTemperature ?? true,
         fixedTopP: def.fixedTopP,
@@ -144,6 +242,10 @@ function mergeModel(
     // 思考能力：平台标记优先，models.dev 兜底。
     const reasoning = apiMeta?.supports_reasoning ?? devEntry?.reasoning ?? false;
 
+    // 思考档位：平台 / models.dev / 内置清单逐级回退（见 resolveReasoningEfforts）。
+    // 平台不返回档位列表时（常见），才用内置清单的实测值兜底。
+    const efforts = reasoning ? resolveReasoningEfforts(modelId, apiMeta, devEntry) : undefined;
+
     // 协议能力：supports_responses=true 的模型默认走 Responses 协议；
     // supports_anthropic 单独跟踪（auto 模式下仅在 enableAnthropicApi 开启时使用）。
     const supportsResponses = apiMeta?.supports_responses === true;
@@ -157,8 +259,9 @@ function mergeModel(
         toolCalling: apiMeta?.supports_tools ?? devEntry?.tool_call ?? true,
         reasoning,
         thinkingMode: reasoning ? "switchable" : "always",
-        supportedReasoningEfforts: reasoning ? ["low", "medium", "high"] : undefined,
-        defaultReasoningEffort: reasoning ? "high" : undefined,
+        supportedReasoningEfforts: efforts?.supported,
+        defaultReasoningEffort: efforts?.default,
+        reasoningEffortsSource: efforts?.source,
         includeReasoningInRequest: reasoning,
         supportsTemperature: devEntry?.temperature ?? true,
         contextLength: apiMeta?.context_length ?? devEntry?.limit?.context ?? DEFAULT_CONTEXT_LENGTH,
@@ -237,6 +340,9 @@ export async function refreshModelRegistry(
         vision: infos.filter((info) => info.vision).length,
         anthropic: _anthropicModelIds.size,
         responses: _responsesModelIds.size,
+        // 档位来源分布：`api` 为平台自己返回，其余为回退（builtin 需实测维护）。
+        effortsFromApi: infos.filter((info) => info.reasoningEffortsSource === "api").length,
+        effortsFromBuiltin: infos.filter((info) => info.reasoningEffortsSource === "builtin").length,
     });
     return infos;
 }

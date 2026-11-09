@@ -96,6 +96,11 @@
 - [ ] 三协议支持情况：`/v1/chat/completions`、`/v1/messages`、`/v1/responses`
       ——不支持的协议在 `resolveApiMode`（`src/provider/requestOptions.ts`）里锁死为 `openai`
 - [ ] `thinking` / `reasoning_effort` 参数的合法取值（各平台差异极大，400 就是对拍点）
+- [ ] **思考档位是否由平台返回**：`/v1/models` 若返回 `supported_reasoning_efforts` /
+      `default_reasoning_effort`（或 `reasoning.efforts` 等形状），`registry.ts` 的
+      `resolveReasoningEfforts` 会**以平台为准**；不返回时回退到内置清单
+      `BUILT_IN_MODELS[].supportedReasoningEfforts`（需用
+      `scripts/dev/probe-reasoning-efforts.mjs` 实测后手写）
 - [ ] 流式 SSE 事件格式是否标准（`data: {...}` / `[DONE]` 哨兵是否存在）
 
 ### 2.2 计费与账号

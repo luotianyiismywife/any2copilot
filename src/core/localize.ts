@@ -40,7 +40,9 @@ const zhCN: Record<string, string> = {
 	"Low": "低",
 	"Medium": "中",
 	"High": "高",
+	"Xhigh": "超高",
 	"Maximum": "极高",
+	"Minimal": "最小",
 
 	// reasoning effort descriptions (keys are English fallback text)
 	"Do not enable thinking": "不启用思考",
@@ -49,7 +51,9 @@ const zhCN: Record<string, string> = {
 	"Reduce thinking, faster response": "减少思考，响应更快",
 	"Balance thinking and speed": "平衡思考与速度",
 	"Deeper thinking, slower response": "更深入的思考，但速度较慢",
+	"Extra deep thinking, very slow response": "极深入的思考，响应很慢",
 	"Maximum thinking depth, slowest response": "最大思考深度，速度最慢",
+	"Minimal thinking, fastest response": "最少思考，响应最快",
 
 	// reasoning effort title (key is English fallback text)
 	"Reasoning Effort": "推理强度",
@@ -66,6 +70,9 @@ const zhCN: Record<string, string> = {
 	"Vision model used by ask_image when the selected model does not support images (empty = auto)": "当所选模型不支持图片时，ask_image 使用的视觉模型（留空 = 自动选择）",
 	"No vision-capable models found. Make sure an API key is configured and the model list is reachable.": "未找到支持视觉的模型。请确认已配置 API Key 且模型列表可访问。",
 	"Vision proxy model set to {0}": "视觉代理模型已设为 {0}",
+	"Auto (model default)": "自动（模型默认）",
+	"Vision proxy thinking for {0}": "视觉代理思考档位（{0}）",
+	"Pick the reasoning effort for this vision model (empty = model default)": "选择该视觉模型的思考档位（留空 = 模型默认）",
 
 	// keyManager.ts - API Key management
 	"Available": "可用",

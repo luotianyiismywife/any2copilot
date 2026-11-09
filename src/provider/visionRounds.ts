@@ -7,21 +7,17 @@ import type {
     ProvideLanguageModelChatResponseOptions,
 } from "vscode";
 import type { ProviderModelItem } from "../core/types";
-import { convertToolsToOpenAI, createRetryConfig, executeWithRetry } from "../core/utils";
+import { createRetryConfig } from "../core/utils";
 import { l10n, l10nFormat } from "../core/localize";
 import { logger } from "../core/logger";
 import type { CommonApi } from "../api/commonApi";
-import { callVisionModel, callVisionModelMulti } from "../vision/imageProxy";
-import {
-    ASK_IMAGE_TOOL_DEF,
-    ASK_WITH_MULTI_IMAGE_TOOL_DEF,
-    ASK_WITH_MULTI_IMAGE_TOOL_NAME,
-    type StoredImage,
-} from "../vision/types";
+import { callVisionModel, callVisionModelMulti, type VisionProxyContext } from "../vision/imageProxy";
+import { ASK_WITH_MULTI_IMAGE_TOOL_NAME, type StoredImage } from "../vision/types";
 import { createVisionToolHistoryPart } from "../vision/historyPart";
 import type { VisionToolHistoryEntry } from "../vision/historyCodec";
 import { bareModelId, getVisionModelInfos, isVisionCapableModelId } from "../models";
 import { VisionRoundError } from "./errors";
+import { executeApiRequest } from "./apiDispatch";
 
 /**
  * 图片代理（ask_image）多轮处理。
@@ -126,6 +122,19 @@ export async function handleInterceptedToolCall(params: VisionRoundParams): Prom
         });
     }
 
+    // 视觉代理请求上下文：复用对话的请求链路（executeApiRequest）。
+    // 端点由 apiMode 决定（与对话相同），reasoning_effort 由
+    // <prefix>.visionProxyThinking 决定（经 reasoningEffortOverride 传入）。
+    const visionCtx: VisionProxyContext = {
+        apiMode: params.apiMode,
+        modelApiKey: params.modelApiKey,
+        baseUrl: params.baseUrl,
+        dispatchFetch: params.dispatchFetch,
+        requestHeaders: params.requestHeaders,
+        retryConfig: params.retryConfig,
+        token: params.token,
+    };
+
     // Accumulate messages across rounds
     let currentMessages: Record<string, unknown>[] = [...(storedMessages as Record<string, unknown>[])];
 
@@ -194,7 +203,7 @@ export async function handleInterceptedToolCall(params: VisionRoundParams): Prom
                     logger.warn("vision.not-enough-images", { indices });
                     description = "[Not enough images for comparison]";
                 } else {
-                    description = await callVisionModelMulti(images, visionModelId, visionPrompt, params.token, visionProgress);
+                    description = await callVisionModelMulti(images, visionModelId, visionPrompt, visionCtx, visionProgress);
                 }
             } else {
                 // Single image
@@ -208,7 +217,7 @@ export async function handleInterceptedToolCall(params: VisionRoundParams): Prom
                         storedImage.mimeType,
                         visionModelId,
                         visionPrompt,
-                        params.token,
+                        visionCtx,
                         visionProgress
                     );
                 }
@@ -216,7 +225,15 @@ export async function handleInterceptedToolCall(params: VisionRoundParams): Prom
         } catch (err) {
             const errMsg = err instanceof Error ? err.message : String(err);
             logger.error("vision.call-failed", { error: errMsg, visionModelId });
-            description = "[Image query unavailable]";
+            // 把失败原因一并回传给主模型：只给一句 "unavailable" 会让主模型
+            // 回复"工具没有返回内容"，用户完全无从排查。
+            description = `[Image query failed: ${errMsg}]`;
+        }
+
+        // 兜底：视觉模型返回空串时不能当成成功结果传给主模型。
+        if (!description || !description.trim()) {
+            logger.warn("vision.empty-description", { visionModelId, round });
+            description = `[Image query returned no text from ${visionModelId}]`;
         }
 
         // Close block 2 (vision thinking)
@@ -269,11 +286,11 @@ export async function handleInterceptedToolCall(params: VisionRoundParams): Prom
 
         try {
             if (params.apiMode === "anthropic") {
-                await runAnthropicRound(params, api, currentMessages, intercepted, description, hasLocalImages, roundAbortController);
+                await runAnthropicRound(params, api, currentMessages, intercepted, description, roundAbortController, roundTimeoutId);
             } else if (params.apiMode === "responses") {
-                await runResponsesRound(params, api, currentMessages, intercepted, description, hasLocalImages, roundAbortController);
+                await runResponsesRound(params, api, currentMessages, intercepted, description, roundAbortController, roundTimeoutId);
             } else {
-                await runOpenAIRound(params, api, currentMessages, intercepted, description, hasLocalImages, roundAbortController);
+                await runOpenAIRound(params, api, currentMessages, intercepted, description, roundAbortController, roundTimeoutId);
             }
         } catch (err) {
             // 视觉代理轮内失败：主请求已成功、tool 上下文已建立，换 key 重跑整个
@@ -299,15 +316,15 @@ export async function handleInterceptedToolCall(params: VisionRoundParams): Prom
     }
 }
 
-/** Anthropic 格式：tool_use + tool_result content block。 */
+/** Anthropic 格式：tool_use + tool_result content block，然后复用 executeApiRequest。 */
 async function runAnthropicRound(
     params: VisionRoundParams,
     api: CommonApi<unknown, unknown>,
     currentMessages: Record<string, unknown>[],
     intercepted: NonNullable<CommonApi<unknown, unknown>["interceptedToolCall"]>,
     description: string,
-    hasLocalImages: boolean,
-    roundAbortController: AbortController
+    roundAbortController: AbortController,
+    roundTimeoutId: ReturnType<typeof setTimeout>
 ): Promise<void> {
     currentMessages.push({
         role: "assistant" as const,
@@ -322,111 +339,44 @@ async function runAnthropicRound(
         ],
     });
 
-    const body: Record<string, unknown> = {
-        model: params.um?.id ?? params.model.id,
-        messages: currentMessages,
-        stream: true,
-    };
-    if (params.um?.max_completion_tokens !== undefined) {
-        body.max_tokens = params.um.max_completion_tokens;
-    } else if (params.um?.max_tokens !== undefined) {
-        body.max_tokens = params.um.max_tokens;
-    }
-    if (params.um?.temperature !== undefined && params.um.temperature !== null) {
-        if (params.um.supportsTemperature !== false) {
-            body.temperature = params.um.temperature;
-        }
-    }
-    const systemContent = api.systemContent;
-    if (systemContent) {
-        body.system = systemContent;
-    }
-    if (params.um?.enable_thinking === true) {
-        if (params.um?.reasoning_effort === 'adaptive') {
-            body.thinking = { type: "adaptive" };
-        } else {
-            // Anthropic requires budget_tokens < max_tokens — clamp to a safe
-            // fraction of the model's output cap so small-output models don't 400.
-            const maxTokens = params.um?.max_completion_tokens ?? params.um?.max_tokens ?? 8192;
-            const budget = Math.min(8192, Math.max(1024, Math.floor(maxTokens / 2)));
-            body.thinking = { type: "enabled", budget_tokens: budget };
-        }
-    } else {
-        // Match the main Anthropic request (prepareRequestBody): explicitly
-        // disable thinking when the user turned it off. Without this, the
-        // Anthropic-compatible endpoint may default thinking back on.
-        body.thinking = { type: "disabled" };
-    }
-
-    // Inject tools (VS Code + ask_image + ask_with_multi_image)
-    const anthropicToolList: Array<{ name: string; description?: string; input_schema?: object }> = [];
-    const toolConfig = convertToolsToOpenAI(params.options);
-    if (toolConfig.tools) {
-        for (const tool of toolConfig.tools) {
-            anthropicToolList.push({
-                name: tool.function.name,
-                description: tool.function.description,
-                input_schema: tool.function.parameters,
-            });
-        }
-    }
-    if (hasLocalImages) {
-        const singleDef = ASK_IMAGE_TOOL_DEF as unknown as { function: { name: string; description: string; parameters: object } };
-        anthropicToolList.push({
-            name: singleDef.function.name,
-            description: singleDef.function.description,
-            input_schema: singleDef.function.parameters,
-        });
-        if (api.localImages.length >= 2) {
-            const multiDef = ASK_WITH_MULTI_IMAGE_TOOL_DEF as unknown as { function: { name: string; description: string; parameters: object } };
-            anthropicToolList.push({
-                name: multiDef.function.name,
-                description: multiDef.function.description,
-                input_schema: multiDef.function.parameters,
-            });
-        }
-    }
-    if (anthropicToolList.length > 0) {
-        body.tools = anthropicToolList;
-    }
-    // Allow the model to freely call ask_image again in this round
-    if (hasLocalImages) {
-        body.tool_choice = { type: "auto" };
-    }
-
-    const normalizedUrl = params.baseUrl.replace(/\/+$/, "");
-    const url = normalizedUrl.endsWith("/v1")
-        ? `${normalizedUrl}/messages`
-        : `${normalizedUrl}/v1/messages`;
-
-    const response = await executeWithRetry(async () => {
-        const res = await params.dispatchFetch(url, {
-            method: "POST",
-            headers: params.requestHeaders,
-            body: JSON.stringify(body),
-            signal: roundAbortController.signal,
-        });
-        if (!res.ok) {
-            const errorText = await res.text();
-            throw new Error(`Anthropic API error: [${res.status}] ${res.statusText}${errorText ? `\n${errorText}` : ""}`);
-        }
-        return res;
-    }, params.retryConfig);
-
-    if (response.body) {
-        await api.processStreamingResponse(response.body, params.trackingProgress, params.token);
-    }
+    // 复用 executeApiRequest：body 拼装（max_tokens / system / reasoning_effort /
+    // temperature / top_k / tools 含 ask_image 注入）统一走 AnthropicApi.prepareRequestBody。
+    // 传外层 api 实例（保留 _hasImages / _systemContent / capturedReasoningContent），
+    // 传 apiMessagesOverride（跳过 convertMessages，原样重放已转换消息 + 追加 tool 轮），
+    // 传 skipVisionRounds（本函数已在视觉代理循环内，内层不能再进入 handleInterceptedToolCall）。
+    await executeApiRequest({
+        apiMode: params.apiMode,
+        model: params.model,
+        um: params.um,
+        modelConfig: { includeReasoningInRequest: true, vision: false },
+        messages: [],
+        options: params.options,
+        trackingProgress: params.trackingProgress,
+        token: params.token,
+        apiKey: params.modelApiKey,
+        baseUrl: params.baseUrl,
+        requestHeaders: params.requestHeaders,
+        retryConfig: params.retryConfig,
+        abortController: roundAbortController,
+        dispatchFetch: params.dispatchFetch,
+        timeoutId: roundTimeoutId,
+        onUsage: () => {},
+        collectedOutputText: [],
+        apiInstance: api,
+        apiMessagesOverride: currentMessages,
+        skipVisionRounds: true,
+    });
 }
 
-/** Responses 格式：标准顶层 function_call / function_call_output item 回填。 */
+/** Responses 格式：标准顶层 function_call / function_call_output item 回填，然后复用 executeApiRequest。 */
 async function runResponsesRound(
     params: VisionRoundParams,
     api: CommonApi<unknown, unknown>,
     currentMessages: Record<string, unknown>[],
     intercepted: NonNullable<CommonApi<unknown, unknown>["interceptedToolCall"]>,
     description: string,
-    hasLocalImages: boolean,
-    roundAbortController: AbortController
+    roundAbortController: AbortController,
+    roundTimeoutId: ReturnType<typeof setTimeout>
 ): Promise<void> {
     // Structured backfill (verified live 2026-09-29): top-level function_call /
     // function_call_output items. The result field MUST be `output` — `content`
@@ -443,106 +393,45 @@ async function runResponsesRound(
         output: description,
     });
 
-    const body: Record<string, unknown> = {
-        model: params.um?.id ?? params.model.id,
-        input: currentMessages,
-        stream: true,
-    };
-    // Restore the system prompt — convertMessages extracts system messages into
-    // _systemContent (top-level "instructions"), so it must be re-sent here or
-    // the vision round loses all Copilot Chat instructions.
-    if (api.systemContent) {
-        body.instructions = api.systemContent;
-    }
-    if (params.um?.max_completion_tokens !== undefined) {
-        body.max_output_tokens = params.um.max_completion_tokens;
-    } else if (params.um?.max_tokens !== undefined) {
-        body.max_output_tokens = params.um.max_tokens;
-    }
-    if (params.um?.temperature !== undefined && params.um.temperature !== null) {
-        if (params.um.supportsTemperature !== false) {
-            body.temperature = params.um.temperature;
-        }
-    }
-    if (params.um?.top_p !== undefined && params.um.top_p !== null) {
-        if (params.um.supportsTemperature !== false) {
-            body.top_p = params.um.top_p;
-        }
-    }
-    if (params.um?.enable_thinking === true) {
-        if (params.um?.reasoning_effort && params.um.reasoning_effort !== "adaptive") {
-            body.reasoning = { effort: params.um.reasoning_effort };
-        }
-    } else {
-        body.reasoning = { effort: "none" };
-    }
-
-    // Inject tools (VS Code + ask_image + ask_with_multi_image) in Responses format
-    const responsesToolList: Array<{ type: "function"; name: string; description?: string; parameters?: object }> = [];
-    const toolConfig = convertToolsToOpenAI(params.options);
-    if (toolConfig.tools) {
-        for (const tool of toolConfig.tools) {
-            responsesToolList.push({
-                type: "function",
-                name: tool.function.name,
-                description: tool.function.description,
-                parameters: tool.function.parameters,
-            });
-        }
-    }
-    if (hasLocalImages) {
-        const singleDef = ASK_IMAGE_TOOL_DEF as unknown as { function: { name: string; description: string; parameters: object } };
-        responsesToolList.push({
-            type: "function",
-            name: singleDef.function.name,
-            description: singleDef.function.description,
-            parameters: singleDef.function.parameters,
-        });
-        if (api.localImages.length >= 2) {
-            const multiDef = ASK_WITH_MULTI_IMAGE_TOOL_DEF as unknown as { function: { name: string; description: string; parameters: object } };
-            responsesToolList.push({
-                type: "function",
-                name: multiDef.function.name,
-                description: multiDef.function.description,
-                parameters: multiDef.function.parameters,
-            });
-        }
-    }
-    if (responsesToolList.length > 0) {
-        body.tools = responsesToolList;
-    }
-    // Only auto/none accepted by the platform's Responses endpoint
-    body.tool_choice = "auto";
-
-    const url = `${params.baseUrl.replace(/\/+$/, "")}/responses`;
-    const response = await executeWithRetry(async () => {
-        const res = await params.dispatchFetch(url, {
-            method: "POST",
-            headers: params.requestHeaders,
-            body: JSON.stringify(body),
-            signal: roundAbortController.signal,
-        });
-        if (!res.ok) {
-            const errorText = await res.text();
-            throw new Error(`Responses API error: [${res.status}] ${res.statusText}${errorText ? `\n${errorText}` : ""}`);
-        }
-        return res;
-    }, params.retryConfig);
-
-    if (response.body) {
-        await api.processStreamingResponse(response.body, params.trackingProgress, params.token);
-    }
+    // 复用 executeApiRequest：body 拼装（instructions / max_output_tokens /
+    // temperature / top_p / reasoning / tools 含 ask_image 注入）统一走
+    // ResponsesApi.prepareRequestBody。
+    // 传外层 api 实例（保留 _hasImages / _systemContent），
+    // 传 apiMessagesOverride（跳过 convertMessages，原样重放已转换消息 + 追加 tool 轮），
+    // 传 skipVisionRounds（本函数已在视觉代理循环内，内层不能再进入 handleInterceptedToolCall）。
+    await executeApiRequest({
+        apiMode: params.apiMode,
+        model: params.model,
+        um: params.um,
+        modelConfig: { includeReasoningInRequest: true, vision: false },
+        messages: [],
+        options: params.options,
+        trackingProgress: params.trackingProgress,
+        token: params.token,
+        apiKey: params.modelApiKey,
+        baseUrl: params.baseUrl,
+        requestHeaders: params.requestHeaders,
+        retryConfig: params.retryConfig,
+        abortController: roundAbortController,
+        dispatchFetch: params.dispatchFetch,
+        timeoutId: roundTimeoutId,
+        onUsage: () => {},
+        collectedOutputText: [],
+        apiInstance: api,
+        apiMessagesOverride: currentMessages,
+        skipVisionRounds: true,
+    });
 }
 
-/** OpenAI 格式：assistant tool_call + tool result。 */
+/** OpenAI 格式：assistant tool_call + tool result，然后复用 executeApiRequest。 */
 async function runOpenAIRound(
     params: VisionRoundParams,
     api: CommonApi<unknown, unknown>,
     currentMessages: Record<string, unknown>[],
     intercepted: NonNullable<CommonApi<unknown, unknown>["interceptedToolCall"]>,
     description: string,
-    hasLocalImages: boolean,
-    roundAbortController: AbortController
+    roundAbortController: AbortController,
+    roundTimeoutId: ReturnType<typeof setTimeout>
 ): Promise<void> {
     // Use the reasoning_content captured from the previous round's streaming response.
     // DeepSeek thinking mode requires the original reasoning_content to be echoed back
@@ -570,73 +459,31 @@ async function runOpenAIRound(
         content: description,
     });
 
-    const body: Record<string, unknown> = {
-        model: params.um?.id ?? params.model.id,
-        messages: currentMessages,
-        stream: true,
-        stream_options: { include_usage: true },
-    };
-    if (params.um?.temperature !== undefined && params.um.temperature !== null) {
-        if (params.um.supportsTemperature !== false) {
-            body.temperature = params.um.temperature;
-        }
-    }
-    if (params.um?.top_p !== undefined && params.um.top_p !== null) {
-        if (params.um.supportsTemperature !== false) {
-            body.top_p = params.um.top_p;
-        }
-    }
-    if (params.um?.max_completion_tokens !== undefined) {
-        body.max_completion_tokens = params.um.max_completion_tokens;
-    }
-    if (params.um?.enable_thinking !== false && params.um?.reasoning_effort !== undefined && params.um.reasoning_effort !== 'adaptive') {
-        body.reasoning_effort = params.um.reasoning_effort;
-    }
-    if (params.um?.enable_thinking === true) {
-        // The platform's OpenAI endpoint accepts only string thinking types
-        body.thinking = (params.um?.reasoning_effort === 'adaptive')
-            ? { type: "auto" }
-            : { type: "enabled" };
-    } else {
-        body.thinking = { type: "disabled" };
-    }
-
-    // Inject tools (VS Code + ask_image + ask_with_multi_image)
-    const openaiToolList: unknown[] = [];
-    const toolConfig = convertToolsToOpenAI(params.options);
-    if (toolConfig.tools) {
-        openaiToolList.push(...toolConfig.tools);
-    }
-    if (hasLocalImages) {
-        openaiToolList.push(ASK_IMAGE_TOOL_DEF);
-        if (api.localImages.length >= 2) {
-            openaiToolList.push(ASK_WITH_MULTI_IMAGE_TOOL_DEF);
-        }
-    }
-    if (openaiToolList.length > 0) {
-        body.tools = openaiToolList;
-    }
-    // Allow the model to freely call ask_image again in this round
-    if (hasLocalImages) {
-        body.tool_choice = "auto";
-    }
-
-    const url = `${params.baseUrl.replace(/\/+$/, "")}/chat/completions`;
-    const response = await executeWithRetry(async () => {
-        const res = await params.dispatchFetch(url, {
-            method: "POST",
-            headers: params.requestHeaders,
-            body: JSON.stringify(body),
-            signal: roundAbortController.signal,
-        });
-        if (!res.ok) {
-            const errorText = await res.text();
-            throw new Error(`API error: [${res.status}] ${res.statusText}${errorText ? `\n${errorText}` : ""}`);
-        }
-        return res;
-    }, params.retryConfig);
-
-    if (response.body) {
-        await api.processStreamingResponse(response.body, params.trackingProgress, params.token);
-    }
+    // 复用 executeApiRequest：body 拼装（temperature / top_p / max_completion_tokens /
+    // reasoning_effort / tools 含 ask_image 注入）统一走 OpenaiApi.prepareRequestBody。
+    // 传外层 api 实例（保留 _hasImages / capturedReasoningContent），
+    // 传 apiMessagesOverride（跳过 convertMessages，原样重放已转换消息 + 追加 tool 轮），
+    // 传 skipVisionRounds（本函数已在视觉代理循环内，内层不能再进入 handleInterceptedToolCall）。
+    await executeApiRequest({
+        apiMode: params.apiMode,
+        model: params.model,
+        um: params.um,
+        modelConfig: { includeReasoningInRequest: true, vision: false },
+        messages: [],
+        options: params.options,
+        trackingProgress: params.trackingProgress,
+        token: params.token,
+        apiKey: params.modelApiKey,
+        baseUrl: params.baseUrl,
+        requestHeaders: params.requestHeaders,
+        retryConfig: params.retryConfig,
+        abortController: roundAbortController,
+        dispatchFetch: params.dispatchFetch,
+        timeoutId: roundTimeoutId,
+        onUsage: () => {},
+        collectedOutputText: [],
+        apiInstance: api,
+        apiMessagesOverride: currentMessages,
+        skipVisionRounds: true,
+    });
 }

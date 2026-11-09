@@ -18,6 +18,8 @@ import { getVisionModelInfos, refreshModelRegistry, type ModelInfo } from "../mo
 
 /** 设置键（不含 section）。 */
 const SETTING_KEY = "visionProxyModel";
+/** 思考档位设置键（不含 section）。 */
+const THINKING_SETTING_KEY = "visionProxyThinking";
 /** 设置 section。 */
 const SETTING_SECTION = "any2copilot";
 
@@ -47,8 +49,8 @@ async function collectVisionModels(secrets: vscode.SecretStorage): Promise<Model
  * 设置可能已在工作区/工作区文件夹级别定义，此时写用户级（Global）会被覆盖，
  * 表现为"选了但没生效"。优先更新已定义的最具体作用域，否则写用户级。
  */
-function resolveUpdateTarget(config: vscode.WorkspaceConfiguration): vscode.ConfigurationTarget {
-    const inspected = config.inspect<string>(SETTING_KEY);
+function resolveUpdateTarget(config: vscode.WorkspaceConfiguration, key: string = SETTING_KEY): vscode.ConfigurationTarget {
+    const inspected = config.inspect<string>(key);
     if (inspected?.workspaceFolderValue !== undefined) {
         return vscode.ConfigurationTarget.WorkspaceFolder;
     }
@@ -102,5 +104,38 @@ export async function selectVisionProxyModel(secrets: vscode.SecretStorage): Pro
     const target = resolveUpdateTarget(config);
     await config.update(SETTING_KEY, picked.modelId, target);
     logger.info("vision.proxyModelPicker.selected", { from: current, to: picked.modelId, target });
+
+    // 选完视觉模型后，动态加载该模型的思考档位让用户选（数据源：内置清单
+    // supportedReasoningEfforts）。平台 /v1/models 与 models.dev 通常不返回
+    // 档位列表，因此这里按模型从内置清单读。
+    const pickedInfo = candidates.find((candidate) => candidate.id === picked.modelId);
+    const supported = pickedInfo?.supportedReasoningEfforts ?? [];
+    // ⚠️ 兼容旧版布尔值残留（早期 visionProxyThinking 是 boolean）。
+    const rawEffort = config.get<unknown>(THINKING_SETTING_KEY, "");
+    const currentEffort = typeof rawEffort === "string" ? rawEffort.trim() : "";
+    const autoLabel = l10n("Auto (model default)");
+    const effortItems: vscode.QuickPickItem[] = [
+        {
+            label: autoLabel,
+            description: currentEffort === "" || currentEffort === "auto" ? l10n("Current") : undefined,
+            picked: currentEffort === "" || currentEffort === "auto",
+        },
+        ...supported.map((effort) => ({
+            label: effort,
+            description: currentEffort === effort ? l10n("Current") : undefined,
+            picked: currentEffort === effort,
+        })),
+    ];
+    const effortPick = await vscode.window.showQuickPick(effortItems, {
+        title: l10nFormat("Vision proxy thinking for {0}", picked.modelId),
+        placeHolder: l10n("Pick the reasoning effort for this vision model (empty = model default)"),
+        ignoreFocusOut: true,
+    });
+    if (effortPick) {
+        const effortValue = effortPick.label === autoLabel ? "" : effortPick.label;
+        await config.update(THINKING_SETTING_KEY, effortValue, resolveUpdateTarget(config, THINKING_SETTING_KEY));
+        logger.info("vision.proxyThinkingPicker.selected", { modelId: picked.modelId, effort: effortValue });
+    }
+
     vscode.window.showInformationMessage(l10nFormat("Vision proxy model set to {0}", picked.modelId));
 }

@@ -1,104 +1,168 @@
 import * as vscode from "vscode";
+import type {
+    CancellationToken,
+    LanguageModelChatRequestMessage,
+    LanguageModelResponsePart,
+    Progress,
+    ProvideLanguageModelChatResponseOptions,
+} from "vscode";
+import type { RetryConfig } from "../core/types";
+import { logger } from "../core/logger";
+import { getModelInfo, toLanguageModelChatInformation, toProviderModelItem } from "../models";
+import { executeApiRequest } from "../provider/apiDispatch";
 import { DEFAULT_VISION_PROMPT } from "./types";
 import type { StoredImage } from "./types";
 
 /**
- * Vendor id this extension registers its language models under.
- * ⚠️ 必须与 `package.json` 的 `contributes.languageModelChatProviders[0].vendor`
- * 及 `extension.ts` 的 `registerLanguageModelChatProvider(<vendor>, ...)` 一致。
+ * 视觉代理请求上下文 —— 复用对话请求链路（`executeApiRequest`）所需的参数。
+ *
+ * 视觉代理**不再**走 `vscode.lm.selectChatModels` + `sendRequest()`（嵌套重入），
+ * 而是与对话一样直接调用 `executeApiRequest`：
+ * - 端点由 `apiMode` 决定（与对话相同，`openai` / `anthropic` / `responses` 由
+ *   `<prefix>.apiMode` 控制）
+ * - `reasoning_effort` 由 `<prefix>.visionProxyThinking` 决定，经
+ *   `executeApiRequest` 的 `reasoningEffortOverride` 传入
+ *
+ * 这样视觉代理不再是"单独实现"，视频/音乐等代理只需构造自己的 `um` + `messages`，
+ * 同样调用 `executeApiRequest` 即可复用整条请求链路。
  */
-const PROVIDER_VENDOR = "any2copilot";
-
-/**
- * Build a standard set of request options for vision model calls.
- */
-function buildVisionOptions(): vscode.LanguageModelChatRequestOptions {
-    const options: vscode.LanguageModelChatRequestOptions = {};
-    const visionThinking = vscode.workspace.getConfiguration().get<boolean>("any2copilot.visionProxyThinking", false);
-    if (visionThinking) {
-        options.modelOptions = { reasoning_effort: "high" };
-    } else {
-        // reasoning_effort="disabled" is REJECTED by the API (400 "field ReasoningEffort
-        // invalid, should be one of: low, medium, high, xhigh, none", 2026-09-19 tested);
-        // the correct value is "none". thinking:{type:"disabled"} alone is also sufficient.
-        options.modelOptions = {
-            reasoning_effort: "none",
-            thinking: { type: "disabled" },
-        };
-    }
-    return options;
+export interface VisionProxyContext {
+    apiMode: string;
+    modelApiKey: string;
+    baseUrl: string;
+    dispatchFetch: typeof fetch;
+    requestHeaders: Record<string, string>;
+    retryConfig: RetryConfig;
+    token: CancellationToken;
 }
 
 /**
- * Find a vision-capable language model from THIS provider.
+ * 读取 `<prefix>.visionProxyThinking` 设置，解析为 `reasoning_effort` 值。
  *
- * The vision proxy always uses a model registered by this extension — the same
- * vendor as the main chat model — so a bare model id (e.g. "my-model") must be
- * matched against the vendor-qualified `LanguageModelChat.id`
- * (`<vendor>/my-model`); a plain `selectChatModels({ id })` would miss it.
- * We never fall back to other vendors' models with the same bare id, since that
- * could route image requests to a different platform (different auth/pricing).
+ * 设置项是自由字符串（默认空 = 模型默认），可选值由**该视觉模型**的
+ * `supportedReasoningEfforts` 决定 —— 平台 `/v1/models` 与 models.dev 通常
+ * 只返回"是否支持 reasoning_effort"的布尔标记，不返回具体档位列表，因此档位
+ * 来自内置清单（`models.ts`，见 AGENTS.md §5.7）。
  *
- * Accepts both a bare id ("my-model") and a vendor-qualified id
- * ("<vendor>/my-model") as the configured value.
+ * 档位来源链：**用户设置 → 内置清单（支持范围过滤 + 默认档位）→ 上游请求体**。
+ *
+ * ⚠️ 兼容旧版布尔值残留：早期版本 `visionProxyThinking` 是 boolean
+ * （`true`=high / `false`=low），用户设置里可能残留 `true`/`false`。布尔值按
+ * "留空 = 模型默认"处理（不做 `.trim()`，避免 `trim is not a function` 崩溃）。
  */
-async function findVisionModel(visionModelId: string): Promise<vscode.LanguageModelChat | undefined> {
-    const raw = visionModelId.trim();
-    if (!raw) {
-        return undefined;
+function resolveVisionReasoningEffort(visionModelId: string): string {
+    const configured = vscode.workspace.getConfiguration().get<unknown>("any2copilot.visionProxyThinking", "");
+    const value = typeof configured === "string" ? configured.trim().toLowerCase() : "";
+    const info = getModelInfo(visionModelId);
+    const supported = info?.supportedReasoningEfforts ?? [];
+    // 设置留空 / auto / 旧版布尔残留 → 不发送 reasoning_effort（模型默认思考行为）。
+    if (!value || value === "auto") {
+        return "auto";
     }
-
-    // Strip a vendor prefix if the user configured a qualified id.
-    let bareId = raw;
-    const slashIdx = raw.indexOf("/");
-    if (slashIdx !== -1) {
-        bareId = raw.substring(slashIdx + 1);
+    // 用户选的档位在模型支持列表里 → 直接透传。
+    if (supported.includes(value)) {
+        return value;
     }
-
-    // 1) Our vendor + bare id — precise and cheap.
-    const ownExact = await vscode.lm.selectChatModels({ vendor: PROVIDER_VENDOR, id: bareId });
-    if (ownExact.length > 0) {
-        return ownExact[0];
+    // 模型不支持该档位 → 回退到模型默认档位。
+    if (info?.defaultReasoningEffort) {
+        return info.defaultReasoningEffort;
     }
-
-    // 2) Scan our vendor's models, matching by full id, bare-id suffix, or name.
-    const ownAll = await vscode.lm.selectChatModels({ vendor: PROVIDER_VENDOR });
-    return ownAll.find(
-        m => m.id === raw || m.id === bareId || m.id.endsWith(`/${bareId}`) || m.name === raw || m.name === bareId
-    );
+    return "low";
 }
 
 /**
- * Send a message to a vision model, stream output via progress, and return the full text.
- * progress.onThinking is called for thinking/reasoning chunks, progress.onText for text chunks.
+ * 发送一条消息给视觉模型，流式转发到 progress，返回完整文本。
+ *
+ * 复用 `executeApiRequest`（与对话同一条请求链路）：端点由 `ctx.apiMode` 决定，
+ * `reasoning_effort` 由 `<prefix>.visionProxyThinking` 决定（经
+ * `reasoningEffortOverride` 传入，不经过 `applyReasoningEffort`）。
+ *
+ * 空答案处理：模型固有思考的部署在思考被抑制时可能只产出 reasoning、
+ * `content` 为空。此时 `collectedOutputText` 为空 —— 抛错，让上层记录
+ * `vision.call-failed` 并把失败原因回传给主模型，**绝不能把空串当成"成功答案"**，
+ * 否则主模型只会说"工具没有返回内容"，用户完全无从排查。
+ * （reasoning 已通过 `progress.onThinking` 实时展示给用户，不参与答案判定。）
  */
-async function sendToVisionModel(
-    msg: vscode.LanguageModelChatMessage,
+async function sendVisionRequest(
+    msg: LanguageModelChatRequestMessage,
     visionModelId: string,
-    token: vscode.CancellationToken,
+    ctx: VisionProxyContext,
     progress?: {
         onThinking?: (text: string) => void;
         onText?: (text: string) => void;
     }
 ): Promise<string> {
-    const visionModel = await findVisionModel(visionModelId);
-    if (!visionModel) {
+    const info = getModelInfo(visionModelId);
+    if (!info) {
         throw new Error(`Vision model "${visionModelId}" not found. Check the any2copilot.visionProxyModel setting.`);
     }
-    const response = await visionModel.sendRequest([msg], buildVisionOptions(), token);
-    let result = "";
-    for await (const chunk of response.stream) {
-        if (chunk instanceof vscode.LanguageModelThinkingPart) {
-            const text = Array.isArray(chunk.value) ? chunk.value.join("") : chunk.value;
-            if (text) {
-                progress?.onThinking?.(text);
+
+    // 视觉模型的请求配置（reasoning_effort 由 visionProxyThinking 决定）。
+    const um = toProviderModelItem(info);
+    const model = toLanguageModelChatInformation(info);
+
+    // 视觉代理不需要工具；构造最小 options 满足类型。
+    const options = {
+        requestInitiator: "any2copilot.visionProxy",
+        toolMode: vscode.LanguageModelChatToolMode.Auto,
+    } as unknown as ProvideLanguageModelChatResponseOptions;
+
+    // 收集文本 + 转发 thinking/text 到主模型的 thinking 块。
+    const collectedOutputText: string[] = [];
+    const visionProgress: Progress<LanguageModelResponsePart> = {
+        report: (part) => {
+            if (part instanceof vscode.LanguageModelThinkingPart) {
+                const text = Array.isArray(part.value) ? part.value.join("") : part.value;
+                if (text) {
+                    progress?.onThinking?.(text);
+                }
+            } else if (part instanceof vscode.LanguageModelTextPart) {
+                collectedOutputText.push(part.value);
+                progress?.onText?.(part.value);
             }
-        } else if (chunk instanceof vscode.LanguageModelTextPart) {
-            result += chunk.value;
-            progress?.onText?.(chunk.value);
-        }
+        },
+    };
+
+    // 视觉代理自己的超时控制器（主请求的 abortController 已用完）。
+    const visionAbort = new AbortController();
+    const timeoutMs = vscode.workspace.getConfiguration().get<number>("any2copilot.requestTimeout", 600000);
+    const timeoutId = setTimeout(() => visionAbort.abort(), timeoutMs);
+    try {
+        await executeApiRequest({
+            apiMode: ctx.apiMode,
+            model,
+            um,
+            modelConfig: { includeReasoningInRequest: true, vision: true },
+            messages: [msg],
+            options,
+            trackingProgress: visionProgress,
+            token: ctx.token,
+            apiKey: ctx.modelApiKey,
+            baseUrl: ctx.baseUrl,
+            requestHeaders: ctx.requestHeaders,
+            retryConfig: ctx.retryConfig,
+            abortController: visionAbort,
+            dispatchFetch: ctx.dispatchFetch,
+            timeoutId,
+            onUsage: () => {},
+            collectedOutputText,
+            // 思考档位由 visionProxyThinking 决定；非思考模型不传（不发该参数）。
+            reasoningEffortOverride: info.reasoning ? resolveVisionReasoningEffort(visionModelId) : undefined,
+        });
+    } finally {
+        clearTimeout(timeoutId);
     }
-    return result.trim();
+
+    const answer = collectedOutputText.join("").trim();
+    if (answer) {
+        return answer;
+    }
+
+    logger.error("vision.empty-answer", { visionModelId });
+    throw new Error(
+        `Vision model "${visionModelId}" returned an empty answer (no content, no reasoning). ` +
+        `It may not accept image input, or its thinking was suppressed by the request options.`
+    );
 }
 
 /**
@@ -112,7 +176,7 @@ export async function callVisionModel(
     mimeType: string,
     visionModelId: string,
     query: string | undefined,
-    token: vscode.CancellationToken,
+    ctx: VisionProxyContext,
     progress?: {
         onThinking?: (text: string) => void;
         onText?: (text: string) => void;
@@ -125,7 +189,7 @@ export async function callVisionModel(
         vscode.LanguageModelChatMessageRole.User,
         [dataPart, textPart]
     );
-    return sendToVisionModel(msg, visionModelId, token, progress);
+    return sendVisionRequest(msg, visionModelId, ctx, progress);
 }
 
 /**
@@ -140,7 +204,7 @@ export async function callVisionModelMulti(
     images: StoredImage[],
     visionModelId: string,
     query: string | undefined,
-    token: vscode.CancellationToken,
+    ctx: VisionProxyContext,
     progress?: {
         onThinking?: (text: string) => void;
         onText?: (text: string) => void;
@@ -156,5 +220,5 @@ export async function callVisionModelMulti(
         vscode.LanguageModelChatMessageRole.User,
         parts
     );
-    return sendToVisionModel(msg, visionModelId, token, progress);
+    return sendVisionRequest(msg, visionModelId, ctx, progress);
 }
